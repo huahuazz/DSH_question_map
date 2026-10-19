@@ -1,0 +1,312 @@
+# 横向提问（lateral-ask）设计
+
+- 日期：2026-10-19
+- 状态：已与用户逐节确认，待实现
+- 形态：DSH Web GUI 客户端插件（+ 约 20 行宿主半边）
+- 代码位置：`<工作区>\lateral-ask\`
+
+## 1. 背景与目标
+
+当前大模型对话是线性的：一个问题得到一个答案，答案里某个名词看不懂时，只能把追问接在同一个对话框里，
+原始问题被越推越远，上下文也越来越长，而用户真正想问的往往只是独立的一个名词。
+
+本插件让用户**选中任意一段对话文字，横向开一个独立的、空上下文的迷你对话**去问它，并把"谁从哪里问出来的"
+记录成一张可以可视化浏览的网状图。
+
+**目标**
+
+1. 选中对话区域的文字 → 出现一个小按钮 → 点开一张浮卡 → 得到流式回答。
+2. 横向提问**不继承主对话上下文**，只带"被选中的文字 + 它前后的一小段引文"。
+3. 卡内可以继续追问（同一个横向线程），也可以在**答案里再选词追问**，形成子节点。
+4. 每个主会话有一张自己的网状图：节点 = 一次横向提问，边 = 从哪段文字问出来的。
+5. 图跨重启保留。
+
+**非目标（v1 明确不做）**
+
+- 全局总览图（跨会话汇总）
+- 可自由拖动缩放的独立窗口、多张卡并排
+- 节点手动拖拽重排、导出/分享、节点搜索、跨设备同步
+- 自定义主题配色（跟随 DSH 主题 token）
+- 让模型调用"画图"之类的工具能力
+
+## 2. 术语
+
+| 词 | 含义 |
+|---|---|
+| 主会话 | 左侧列表里点开、正在看的对话 |
+| 横向会话 | 选词追问时后台新建的、空上下文的真实 DSH 会话 |
+| 节点 | 一次横向提问的完整线程（首问 + 卡内后续追问） |
+| 边 | "这个节点是从哪段文字问出来的"，指向父节点或主会话中的某条消息 |
+| 锚点 | 用户选中的那段文字（原文存下来，用于图中标签与卡片标题） |
+| 归属会话 | 节点属于哪张图，等于发起提问时所在的主会话 id |
+
+## 3. 插件形态与安装
+
+### 3.1 包结构
+
+```
+lateral-ask/
+  package.json
+  lib/index.js      # 宿主半边
+  lib/client.js     # 浏览器半边（DSH 模块格式，手写，无构建步骤）
+  docs/superpowers/specs/2026-10-19-lateral-ask-design.md
+```
+
+`package.json` 关键字段：
+
+```json
+{
+  "name": "dsh-plugin-lateral-ask",
+  "type": "module",
+  "main": "lib/index.js",
+  "exports": {
+    ".": { "default": "./lib/index.js" },
+    "./client": { "default": "./lib/client.js" },
+    "./package.json": "./package.json"
+  },
+  "dsh": {
+    "client": {
+      "platform": "web",
+      "inject": [
+        "@deepseek-ai/dsh-api-remotes",
+        "@deepseek-ai/dsh-api-session-controller",
+        "@deepseek-ai/dsh-client-connection",
+        "@deepseek-ai/dsh-client-locale",
+        "@deepseek-ai/dsh-client-ui-conversation",
+        "@deepseek-ai/dsh-client-ui-layout",
+        "@deepseek-ai/dsh-client-ui-renderer",
+        "@deepseek-ai/dsh-client-ui-session",
+        "@deepseek-ai/dsh-client-ui-settings"
+      ]
+    }
+  }
+}
+```
+
+### 3.2 浏览器半边格式
+
+DSH 的客户端插件是预构建的浏览器 bundle，形如：
+
+```js
+window.__ModuleLoader__.load({
+  id: "dsh-plugin-lateral-ask",
+  factory: (require) => {
+    // 只能 require 平台静态表里的 8 个模块
+    // react / react/jsx-runtime / react-dom / react-dom/client /
+    // @deepseek-ai/cordis / @deepseek-ai/dsh-client-store /
+    // @deepseek-ai/dsh-client-ui-slots / @deepseek-ai/dsh-client-ui-primitives
+    return { inject, apply }
+  }
+})
+```
+
+因此：不引第三方库（图为手写 SVG），组件用 `React.createElement`（`h()`）而非 JSX，
+样式在 `apply` 里自注入一个 `<style data-plugin="dsh-plugin-lateral-ask">` 标签。
+
+### 3.3 安装步骤
+
+1. 把 `lateral-ask/` 复制到 `C:\Users\Admin\.dsh\profiles\desktop\node_modules\dsh-plugin-lateral-ask\`。
+2. 在 `C:\Users\Admin\.dsh\profiles\desktop\package.json` 的 `dependencies` 里加
+   `"dsh-plugin-lateral-ask": "file:./node_modules/dsh-plugin-lateral-ask"`。
+3. 在 `C:\Users\Admin\.dsh\profiles\desktop\cordis.yml` 里加一条：
+
+   ```yaml
+   - id: lateral-ask
+     name: dsh-plugin-lateral-ask
+   ```
+
+4. 该 profile 配置了 `patchReload: live`，保存后应自动装载；若浏览器端 bundle 未更新，刷新页面。
+
+> 第 1~3 步写在工作区之外的目录，需要一次授权（或用户手动执行）。实现时按此顺序提供一段可复制的命令。
+
+## 4. 架构
+
+### 4.1 客户端半边：5 个互不耦合的单元
+
+| 单元 | 职责 | 依赖 |
+|---|---|---|
+| `selection-watcher` | 监听 `selectionchange` / `mouseup` / `scroll`，判断选区是否落在对话区域，算出屏幕矩形与来源定位，输出 `Anchor` 或 `null` | 纯 DOM |
+| `ask-button` | 选区旁的小气泡按钮；点击发出 `open(anchor)` 意图 | `Anchor` |
+| `ask-card` | 锚定浮卡：术语 + 来源 + 迷你线程 + 追问输入框 + 「在主页打开/固定/关闭」 | `thread-store`、`graph-store` |
+| `graph-view` | 画布浮层：SVG 分层布局、缩放、平移、点节点重开卡 | `graph-store` |
+| `graph-store` | 节点/边模型 + 持久化适配 + 线程对话数据（每个横向会话的消息列表与运行状态） | `settingsScope`、`sessions`、`uiConversation` |
+
+外部只有一条数据流：`selection-watcher → ask-button → ask-card → (graph-store) → graph-view`。
+每个单元只通过普通函数/订阅交互，互不直接引用对方的组件。
+
+### 4.2 宿主半边
+
+`lib/index.js` 只做一件事：把持久化命名空间注册进宿主设置文档。
+
+```js
+function apply(ctx) {
+  ctx.inject(['settings'], (s) => {
+    s.settings.register(settingsNamespace('lateral-ask'), Schema)
+  })
+}
+```
+
+### 4.3 依赖的 DSH 服务
+
+| 服务 | 用途 |
+|---|---|
+| `ctx.sessions` | `create()` 建横向会话、`binding(id).session.prompt()` 发问、`list` 读当前会话与 cwd |
+| `ctx.remote.session.selectModel` | 继承主会话的模型 |
+| `ctx.uiConversation.binding(sessionId)` | 订阅横向会话的对话快照（读回答文本） |
+| `ctx.slots` | 注册进 `shell.overlay`（root 作用域的 list 槽位，浮层不阻塞布局） |
+| `ctx.locale` | 中英文案（命名空间 `lateralAsk`） |
+| `ctx.settingsScope` | 图的持久化读写 |
+| `ctx.sessions.open(id)` | 「在主页打开」时把主视图切到该横向会话 |
+| `sessions.binding(id).session.projections.faceOf('modelSelection')` | 读主会话当前模型（`next ?? lastUsed`）用于继承 |
+
+## 5. 数据模型
+
+### 5.1 图（持久化）
+
+```js
+// settings 命名空间 "lateral-ask" 的文档
+{
+  version: 1,
+  nodes: [Node]     // 扁平数组，用 rootSessionId 分组出多张图
+}
+
+Node = {
+  id: string,                  // 节点 id（uuid）
+  sessionId: string,           // 对应的横向会话 id
+  rootSessionId: string|null,  // 归属会话；null = 未归属（无当前会话时提问）
+  term: string,                // 选中的原文（可能很长，图上截断显示）
+  quote: string,               // 选中处前后各约 200 字的引文（提问时用，也便于回溯原意）
+  question: string,            // 首问原文
+  parent: null
+        | { kind: 'session', sessionId: string, messageSeq: number }
+        | { kind: 'node', nodeId: string },
+  createdAt: number,
+  updatedAt: number
+}
+```
+
+**回答正文不入库**：答案持久化在那个横向会话里，节点只存指针 + 术语 + 问题，避免两份真相。
+每个节点几百字节，`settings.yaml` 不会被撑大。
+
+### 5.2 运行时（不持久化）
+
+- `threads: Map<sessionId, { messages: Msg[], running: boolean, error?: string }>`
+  从 `uiConversation` 快照投影而来，`Msg = { role: 'user'|'assistant', text: string }`。
+- `anchors`、`openCard`、`graphOpen`、`scale`、`offset` 等纯 UI 状态，活在各自的组件里。
+
+## 6. 关键流程
+
+### 6.1 首问
+
+```
+选中 → selection-watcher 判定范围与矩形
+     → ask-button 出现在选区右下
+     → 点击 → ask-card 打开（先显示"正在准备…"，卡片定位在选区旁）
+     → graph-store.createNode(anchor):
+          cwd   = 当前主会话的 cwd（无则不带）
+          id    = await sessions.create({ cwd })
+          title = `⟂ ${term 截断 24 字}`（随后 session.rename(title)）
+          继承模型：selection = 当前主会话 modelSelection 投影的 next ?? lastUsed
+                   → remote.session.selectModel({ sessionId: id, ...selection })
+          await sessions.binding(id).session.prompt([{ type: 'text', text: 提问模板 }], 'queue')
+     → 订阅 uiConversation.binding(id).target('chat') 快照 → 流式渲染答案
+     → `sessions.create` 一成功就把节点写进图；发问失败只更新卡片状态，不删节点
+```
+
+**提问模板**（一次性引文，不继承上下文）：
+
+```
+我读到这句话：「{quote}」，其中「{term}」这个词我不理解。
+
+请只解释「{term}」：它在这里是什么意思、为什么这里用这个词。不要复述原文，也不要展开无关背景。
+```
+
+### 6.2 卡内追问
+
+同一个横向会话再 `prompt`，`mode: 'queue'`。**不新建节点**，卡片内消息列表增长。
+
+### 6.3 卡内再次选词 → 子节点
+
+在卡片的答案区域选词，走同一条首问链路，只是 `parent = { kind: 'node', nodeId: 当前节点 }`，
+`rootSessionId` 继承当前节点的归属会话（保持同一张图）。这是"网状"的来源，不需要额外机制。
+
+### 6.4 看图
+
+右上角入口按钮（带节点数徽标）→ 全屏半透明遮罩 + 画布：
+
+- 分层布局：根列（主会话自身）→ 一级节点 → 二级节点……，每层水平间隔 220px，同层垂直间隔 96px。
+- 节点：半径 26 的圆 + 右侧标签（term 截断 12 字），有未读/正在运行的节点加高亮描边。
+- 边：从父到子的三次贝塞尔曲线 + 箭头。
+- 交互：滚轮缩放（0.4~2.0）、空白处拖拽平移、点节点重开其卡、「适应画布」按钮。
+- 初始自动 fit 到全部节点。
+
+## 7. 异常与降级
+
+| 情况 | 行为 |
+|---|---|
+| 无当前会话时选词 | 允许。横向会话不带 cwd，卡片顶部提示「无工作目录，回答可能没有工具能力」；`rootSessionId = null`，图上归到「未归属」 |
+| 会话列表未就绪 | 不出现小按钮 |
+| `sessions.create` 失败 | 卡片保留并显示错误原文 + 「重试」；**不写节点**，不留脏数据 |
+| 发问失败（网络/额度/模型错误） | 卡片内显示宿主错误原文，节点保留（会话真实存在），可「重试」 |
+| 回答流中断 | 卡片显示「连接中断」，已收到文本不清空；重开卡从宿主历史重放 |
+| 图写入被拒（revision 冲突） | 重读 → 按 id 合并（`updatedAt` 大者胜）→ 重写一次；仍失败则只在内存生效并提示「本次未保存」 |
+| 读不到回答文本（内部结构变化） | 卡片显示「回答进行中／请在主页查看」+ 「在主页打开」；图的全部功能不受影响 |
+| 插件被热重载 | 浮卡与画布直接消失、不抛错；图从设置文档重建 |
+| 选区跨越多个消息 / 超长 | 允许；`term` 保留全文用于提问，图上与卡标题截断显示；引文上限 2000 字 |
+
+通用原则：**图是骨架，UI 永远不崩**。任何读不到内容的情况都退化成「打开主页看」，而不是报错。
+
+## 8. UI 规格
+
+**小按钮**：出现在选区右下 8px，圆形 28px，图标 + tooltip「追问这段」。选区清空、点击别处、Esc、滚动时消失。
+
+**浮卡**：
+
+- 默认 380px 宽，高度自适应，最高 `min(70vh, 560px)`，内容滚动。
+- 定位：选区右侧（空间不足则左侧），垂直方向夹在视口内；一旦用户拖动过就记住位置。
+- 头部：`⟂ 术语` + 来源（「来自本次对话 · 第 N 轮」/「来自节点 X」）+ 「在主页打开 / 固定 / 关闭」。
+- 中部：迷你线程（用户问题右对齐、助手回答左对齐），助手回答用 `MarkdownText` 渲染，运行中显示光标动效。
+- 底部：输入框（Enter 发送，Shift+Enter 换行）+ 发送/停止按钮。
+- 关闭规则：Esc、点卡片外、点「关闭」；固定后不随点外部关闭。
+- 卡内同样接入 `selection-watcher`，所以能再选词开子节点。
+
+**画布浮层**：见 6.4；右上角入口按钮常驻在 `shell.overlay` 内（`pointer-events: auto`），其余位置不拦截点击。
+
+## 9. 持久化细节
+
+- 命名空间 `lateral-ask`，宿主 schema 用 schemastery `z.object({ version: z.number().default(1), nodes: z.array(NodeSchema).default([]) })`。
+- 客户端 `ctx.settingsScope.bind({ namespace: 'lateral-ask' })`，读快照、`mutate` 写入。
+- 写入时机：节点新增/更新时防抖 300ms 全量提交 `nodes`；同一 tick 内多次变更合并为一次。
+- 冲突处理见第 7 节。
+
+## 10. 测试与验收
+
+无自动化测试基建（第三方插件没有 DSH 仓库的测试装置），采用**手动验收清单 + 调试句柄**：
+
+插件在 `apply` 里挂一个只读调试句柄 `window.__lateralAsk = { state(), nodes(), openGraph(), clear() }`，便于在控制台断言状态。
+
+验收清单（交付时逐条自查）：
+
+1. 选中助手回复里的名词 → 右侧冒出小按钮；点开 → 卡片贴着选区出现。
+2. 卡片逐字出答案，Markdown（列表/代码/加粗）正常渲染。
+3. 卡内追问一句 → 同一横向会话继续答，卡片不跳。
+4. 在卡片答案里再选词追问 → 出现子节点；打开图能看到父→子连线。
+5. 图：滚轮缩放、拖拽平移、点节点重开卡、关掉浮卡后图仍在。
+6. 点「在主页打开」→ 主界面切到该横向会话，是完整原生对话。
+7. 关掉整个应用再打开 → 图还在，节点都在，点开仍能看到原来的答案。
+8. 在侧边栏/设置页选词 → **不**冒按钮。
+9. 拖选、复制大段文字 → 不冒按钮、不卡顿。
+10. 控制台无反复报错（尤其高频 `selectionchange`）。
+
+## 11. 风险与已知取舍
+
+- **会话列表会变长**：每个横向提问是一个真实会话，标题带 `⟂` 前缀便于识别。这是"复用真实会话"方案的直接代价，不是缺陷。
+- **依赖非公开接口**：`uiConversation.binding(id).target('chat')`、`settingsScope` 不是面向第三方的稳定约定，DSH 升级可能破；已按第 7 节降级。
+- **手写 bundle 与 8 个共享模块强绑定**：不能引第三方库，所以图为手写 SVG。
+- **安装需动工作区外目录**：见 3.3，需要一次授权或手动执行。
+- **回答文本读取依赖 chat 目标的节点结构**：节点 kind 若变化，走第 7 节降级路径，不影响图。
+
+## 12. v2 候选
+
+全局总览图、节点拖拽重排、卡内多标签并行、导出为 Markdown/JSON、图内搜索、
+横向会话在侧边栏折叠成一组、把横向提问结果"吸收"为主对话的一条引用。
