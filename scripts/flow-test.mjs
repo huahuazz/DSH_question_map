@@ -125,7 +125,7 @@ const ctx = {
     },
   },
   sessions: {
-    list: { getSnapshot: () => ({ current: MAIN_SESSION, byId: { [MAIN_SESSION]: { cwd: "C:/work/demo" } } }) },
+    list: { getSnapshot: () => ({ byId: { [MAIN_SESSION]: { cwd: "C:/work/demo", retainedBy: { mainView: 1 } } } }) },
     create: async (options) => {
       created.push(options)
       if (failCreate) throw new Error("host refused")

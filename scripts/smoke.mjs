@@ -95,6 +95,7 @@ const effects = []
 const registeredSlots = []
 const localeNamespaces = []
 const openedSessions = []
+const sideSessions = []
 const sessions = { current: "main-session" }
 
 const ctx = {
@@ -123,11 +124,19 @@ const ctx = {
   },
   sessions: {
     list: {
-      getSnapshot: () => ({ current: sessions.current, byId: { "main-session": { cwd: "C:/work" } } }),
+      getSnapshot: () => {
+        const byId = {}
+        for (const id of ["main-session", ...sideSessions]) byId[id] = { cwd: "C:/work", retainedBy: sessions.current === id ? { mainView: 1 } : {} }
+        return { byId }
+      },
       subscribe: () => () => {},
     },
     binding: () => undefined,
-    create: async () => "session-stub",
+    create: async () => {
+      sideSessions.push("side-stub")
+      return "side-stub"
+    },
+    retain: (id) => ({ sessionId: id, release: () => {}, ready: Promise.resolve() }),
   },
   uiConversation: {
     binding: () => {
@@ -137,6 +146,7 @@ const ctx = {
   uiWorkspace: {
     openSession: (id) => {
       openedSessions.push(id)
+      sessions.current = id
     },
   },
   workspaces: {
@@ -174,6 +184,7 @@ assert(storage.size === 1, "图应写入 localStorage")
 const persisted = JSON.parse([...storage.values()][0])
 assert(persisted.nodes.length === 1, "localStorage 里应有 1 个节点")
 
+assert(controller.currentRootId() === "main-session", `应能从 retainedBy.mainView 认出当前会话，实际 ${controller.currentRootId()}`)
 assert(controller.relatedGraph("main-session") !== null, "当前会话应与追问网相关（入口按钮可见）")
 assert(controller.relatedGraph("另一个新会话") === null, "无关会话不应显示入口按钮")
 assert(controller.relatedGraph(controller.state.nodes[0].sessionId) !== null, "横向会话本身也应相关")
@@ -182,6 +193,7 @@ assert(controller.relatedGraph(controller.state.nodes[0].sessionId) !== null, "�
 controller.openInMain(controller.state.nodes[0].sessionId)
 await new Promise((done) => setTimeout(done, 50))
 assert(openedSessions.length === 1, `应通过 uiWorkspace.openSession 打开会话，实际 ${openedSessions.length}`)
+assert(controller.currentRootId() === openedSessions[0], `跳转后应能认出当前会话（retainedBy.mainView），实际 ${controller.currentRootId()}`)
 
 // ---- 卸载 ----
 for (const { disposer } of effects.slice()) {
