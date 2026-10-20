@@ -1,4 +1,4 @@
-﻿/**
+/**
  * 无浏览器的冒烟测试：把 `lib/client.js` 当成 DSH 的浏览器模块加载，喂一套最小桩，
  * 验证「模块格式、注入清单、locale/slot 注册、本地存储、会话跳转、调试句柄、卸载」。
  *
@@ -231,7 +231,37 @@ for (const { disposer } of effects.slice()) {
   if (typeof disposer === "function") disposer()
 }
 
-console.log("smoke ok：模块格式、注入清单、locale/slot 注册、本地存储、旧会话恢复、会话跳转、调试句柄、卸载全部通过")
+// ---- 时序：启动时会话列表还没加载完，等列表有数据后应补恢复 ----
+storage.clear()
+const lateListeners = new Set()
+let lateById = {}
+plugin.apply({
+  ...ctx,
+  sessions: {
+    list: {
+      getSnapshot: () => ({ current: "main-session", byId: lateById }),
+      subscribe: (listener) => {
+        lateListeners.add(listener)
+        return () => lateListeners.delete(listener)
+      },
+    },
+    binding: () => undefined,
+    create: async () => "session-stub",
+  },
+  workspaces: { list: { getSnapshot: () => ({ items: [{ workspaceId: "ws-9", sessionIds: ["main-session", "late-1"] }] }) } },
+})
+const lateController = registeredSlots[registeredSlots.length - 1].definition.inject().controller
+assert(lateController.state.nodes.length === 0, "会话列表为空时不应恢复出节点")
+assert(lateListeners.size === 1, "应挂上一个一次性会话订阅等待列表就绪")
+lateById = { "main-session": { title: "主对话" }, "late-1": { title: "⟂ 迟到恢复", updatedAt: 5 } }
+for (const listener of [...lateListeners]) listener()
+assert(lateController.state.nodes.length === 1, `会话列表就绪后应补恢复 1 个节点，实际 ${lateController.state.nodes.length}`)
+assert(lateListeners.size === 0, "恢复成功后应退订")
+for (const { disposer } of effects.slice()) {
+  if (typeof disposer === "function") disposer()
+}
+
+console.log("smoke ok：模块格式、注入清单、locale/slot 注册、本地存储、旧会话恢复（含时序）、会话跳转、调试句柄、卸载全部通过")
 console.log(`  inject: ${plugin.inject.join(", ")}`)
 console.log(`  require 过的共享模块: ${[...new Set(requiredNames)].join(", ")}`)
 
