@@ -50,6 +50,7 @@ const source = await readFile(bundlePath, "utf8")
 vm.runInThisContext(source, { filename: bundlePath })
 const plugin = captured[0].factory((name) => {
   if (name === "react") return React
+  if (name === "react-dom") return { createPortal: (children) => children }
   if (name === "@deepseek-ai/dsh-client-ui-primitives") {
     return { MarkdownText: (props) => React.createElement("div", null, props.text) }
   }

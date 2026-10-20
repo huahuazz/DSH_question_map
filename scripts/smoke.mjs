@@ -67,9 +67,10 @@ function createFakeDocument() {
 const document = createFakeDocument()
 const loaded = []
 
-/** 平台静态模块表里我们会用到的两个。 */
+/** 平台静态模块表里我们会用到的三个。 */
 const sharedModules = {
   react: React,
+  "react-dom": { createPortal: (children) => children },
   "@deepseek-ai/dsh-client-ui-primitives": {
     MarkdownText: (props) => React.createElement("div", { className: "fake-markdown" }, props.text),
   },
