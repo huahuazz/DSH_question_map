@@ -35,13 +35,16 @@ that answers just that. Every question remembers which text it came from, and al
 ## Install
 
 ```sh
-dsh plugin --profile web add dsh-plugin-question-map
+# 尚未发布到 npm 时，直接从 GitHub 安装
+dsh plugin --profile web add github:huahuazz/DSH_question_map
 ```
+
+> 发布到 npm 之后可以简写成 `dsh plugin --profile web add dsh-plugin-question-map`。
 
 DSH Desktop: install it from **Settings → Plugins**, or
 
 ```sh
-dsh plugin --profile desktop add dsh-plugin-question-map
+dsh plugin --profile desktop add github:huahuazz/DSH_question_map
 ```
 
 Then **fully quit and restart** DSH — client bundles are loaded at composition time.

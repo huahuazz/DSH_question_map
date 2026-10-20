@@ -45,7 +45,8 @@
     "README.zh.md",
     "CHANGELOG.md",
     "LICENSE",
-    "docs"
+    "docs",
+    "screenshots.json"
   ],
   "dsh": {
     "bundle": {

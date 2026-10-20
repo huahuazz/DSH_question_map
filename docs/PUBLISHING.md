@@ -1,7 +1,8 @@
 # 发布与上架
 
-本文记录「改完之后怎么发出去」，以及社区市场的收录要求（依据本机 `dshmarket` 的 README 与
-[awesome-dsh-plugin](https://github.com/awesome-dsh-plugin/awesome-dsh-plugin) 列表）。
+依据：
+- [awesome-dsh-plugin/contributing.md](https://github.com/awesome-dsh-plugin/awesome-dsh-plugin/blob/main/contributing.md)（收录要求，2026-10 版本）
+- 本机 `dshmarket` 插件的 README（市场里的插件源就是这份精选列表）
 
 ## 0. 发布前自检
 
@@ -16,55 +17,82 @@ node scripts/pack-check.mjs         # npm 发布面（files/exports/dsh/engines�
 
 ## 1. 版本号
 
-`package.json` 的 `version` 用语义化版本。改 DSH 兼容线（例如从 0.2.x 到 0.3.x）时至少升 minor。
+`package.json` 的 `version` 用语义化版本；改 DSH 兼容线（例如 0.2.x → 0.3.x）时至少升 minor。
 
 ## 2. 推到 GitHub
 
 ```sh
-git add -A
-git commit -m "feat: ..."
-git push origin main
+git add -A && git commit -m "..." && git push origin main
 ```
 
 仓库：<https://github.com/huahuazz/DSH_question_map>
 
-## 3. （可选）发布到 npm
+## 3. 上架：往 awesome-dsh-plugin 提一个 PR
 
-社区市场优先安装 **npm 上的包**（按版本秒装）；只发 GitHub 也能装，走仓库 tarball。
+市场（dshmarket）**不是**从 DeepSeek 官方仓库拉的，而是读
+[awesome-dsh-plugin](https://github.com/awesome-dsh-plugin/awesome-dsh-plugin) 这份精选列表。
+提交方式不是改 README，而是**新增一个 YAML 文件**：
+
+`data/plugins/huahuazz__DSH_question_map.yml`
+
+```yaml
+url: https://github.com/huahuazz/DSH_question_map
+name: huahuazz/DSH_question_map
+category: ui
+description:
+  en: 'Select text in a conversation to ask a context-free side question in a floating card, and browse every question as a network graph.'
+  zh: '在对话里选中文字横向追问（空上下文的浮卡），所有追问连成一张可浏览的网状图，支持导出 PNG。'
+```
+
+> 描述里出现 `: `（半角冒号+空格）必须加引号，所以上面用单引号包起来。
+> `category` 可选值：`agi` `ui` `usage` `theme` `model` `identity` `session` `memory`
+> `tools` `wsl` `browser` `vision` `voice` `docs` `skill` `workflow` `git` `notify`
+> `dev` `security` `remote` `market` `fun`。本插件是 Web 交互增强，取 `ui`。
+
+### 提交前必须满足（CI 会逐条查）
+
+| 要求 | 我们 |
+|---|---|
+| `package.json` 声明 `dsh.bundle`（只声明 `dsh.client` 会被拒） | ✅ `./cordis.patch.yml` |
+| 仓库根有 `cordis.patch.yml`，内含 `insert` 本包 | ✅ |
+| 真实可用的代码，不是占位/纯 README | ✅ |
+| **仓库创建满 1 天**（CI 自动查） | ⚠️ 见下方"时间门槛" |
+| 仓库添加 `dsh-plugin` topic | ⚠️ 需在 GitHub 网页上点一下 |
+| 描述属实、无营销词 | ✅ |
+
+### 时间门槛
+
+CI 会查仓库创建时间，**不满 1 天直接拒**（目的是过滤"提 PR 前几分钟才建好"的仓库）。
+如果仓库是刚建的，把功能做完、过一天再提；重新提交不会有任何影响。
+
+### 截图（可选，已做）
+
+市场详情页的 App Store 式截图来自**本仓库自己的** `screenshots.json`：
+
+```json
+["docs/images/graph.png", "docs/images/graph-nodes.png", "docs/images/exported.png"]
+```
+
+改截图只要推自己的仓库，下一次构建自动生效，不用再来提 PR。
+
+## 4. （可选）发布到 npm
+
+发 npm 的好处：市场能显示下载量、安装免 `allowBuilds` 构建授权、`dsh plugin add <包名>` 直接可用。
+**不发也能收录**——列表照样收录，用户从 GitHub 源码安装。
 
 ```sh
 npm login
-npm pack --dry-run   # 先看清单，应该只包含 lib/ cordis.patch.yml README* LICENSE docs/
+npm pack --dry-run   # 先看清单：应只包含 lib/ cordis.patch.yml README* LICENSE docs/
 npm publish --access public
 ```
 
-包名 `dsh-plugin-question-map`。发布前确认 `private` 不是 `true`（本仓库没有设置它）。
-
-## 4. 提交到社区精选列表（上架）
-
-市场里的插件来自 **[awesome-dsh-plugin](https://github.com/awesome-dsh-plugin/awesome-dsh-plugin)**——
-不是往 dsh-market 仓库提。流程：
-
-1. Fork `awesome-dsh-plugin/awesome-dsh-plugin`；
-2. 在 `README.md`（以及 `README.zh.md`）对应的分类下加一行，格式与相邻条目一致：
-
-   ```md
-   - [huahuazz/DSH_question_map](https://github.com/huahuazz/DSH_question_map) - Select text in a conversation to ask a context-free side question; all questions form a browsable network graph.
-   ```
-
-3. 提 PR。站点与市场每天同步一次，通常一天内生效。
-
-收录条件（列表维护者的原话）：能用 `dsh plugin add` 装上、行为与一句话描述一致、放在正确分类、持续维护。
-本仓库满足前三条的前提是：
-
-- `package.json` 声明了 `dsh.bundle.patch`（`cordis.patch.yml`），所以 `dsh plugin add dsh-plugin-question-map` 会把它作为一层插件装进 profile；
-- 声明了 `dsh.client.platform = "web"` 与 `exports["./client"]`，所以浏览器侧 bundle 能被 `/plugins` 提供；
-- `engines.dsh` 声明了最低版本，市场的"按宿主发现"能据此判断兼容性。
+发布后，`repository` 字段必须指回本仓库，否则市场不会把 npm 包与这个条目关联（我们已指向）。
 
 ## 5. 发版检查清单
 
 - [ ] `engines.dsh` 与目标 DSH 线一致
 - [ ] `lib/client.js` 里 `__ModuleLoader__.load({ id })` 的 id **等于包名**
 - [ ] `dsh.client.inject` 里的插件 id 都能在本机 DSH 安装里找到
-- [ ] README 顶部有截图（GitHub 图床，相对路径 `docs/images/...` 也可以）
 - [ ] `cordis.patch.yml` 的 `name:` 等于包名
+- [ ] 四条自检脚本全绿
+- [ ] 仓库已有 `dsh-plugin` topic、创建满 1 天
