@@ -165,10 +165,13 @@ assert(
   Object.keys(localeNamespaces[0].dictionaries.zh).length === Object.keys(localeNamespaces[0].dictionaries.en).length,
   "中英文案键集应一致",
 )
-assert(registeredSlots.length === 1, "应注册一个 slot 条目")
-assert(registeredSlots[0].definition.name === "shell.overlay", "slot 条目应挂在 shell.overlay")
-assert(registeredSlots[0].definition.locale === "questionMap", "slot 条目应绑定 questionMap 文案")
-assert(typeof registeredSlots[0].component === "function", "slot 条目应带组件")
+assert(registeredSlots.length === 2, "应注册两个 slot 条目（输入区入口 + 浮层），实际 " + registeredSlots.length)
+const slotByName = (name) => registeredSlots.find((slot) => slot.definition.name === name)
+assert(slotByName("conversation.input.left") !== undefined, "入口按钮应挂在 conversation.input.left（跟着输入框走）")
+assert(slotByName("shell.overlay") !== undefined, "浮卡/画布应挂在 shell.overlay")
+assert(slotByName("shell.overlay").definition.locale === "questionMap", "slot 条目应绑定 questionMap 文案")
+assert(typeof slotByName("shell.overlay").component === "function", "slot 条目应带组件")
+assert(typeof slotByName("conversation.input.left").component === "function", "入口按钮 slot 应带组件")
 assert(headChildren.some((child) => child.dataset?.plugin === "dsh-plugin-question-map"), "应注入插件样式表")
 
 assert(globalThis.__questionMap !== undefined, "挂载后应暴露调试句柄 __questionMap")
@@ -177,7 +180,7 @@ assert(Array.isArray(state.nodes), "state.nodes 应为数组")
 assert(state.graphOpen === false, "图默认关闭")
 
 // ---- 控制器行为：提问 → 落库 → 入口可见性 ----
-const controller = registeredSlots[0].definition.inject().controller
+const controller = slotByName("shell.overlay").definition.inject().controller
 await controller.ask({ term: "锚定浮卡", quote: "从选中处展开卡片", parent: null, rect: null })
 await new Promise((done) => setTimeout(done, 400))
 assert(controller.state.nodes.length === 1, `提问后应有 1 个节点，实际 ${controller.state.nodes.length}`)
@@ -325,6 +328,16 @@ assert(findByType(cardTree, "svg").length >= 3, "浮卡的操作按钮应使用�
 const graphTree = components.GraphView({ controller, nodes: controller.state.nodes, t })
 assert(emojiIn(graphTree).length === 0, "网格里不应再有 emoji：" + emojiIn(graphTree).join(" | "))
 assert(findByType(graphTree, "svg").length >= 2, "网格的工具栏与节点应使用内联 svg 图标，实际 " + findByType(graphTree, "svg").length)
+
+// ---- 输入区入口按钮：一块方形按钮，无关会话里不渲染 ----
+const entryEl = components.EntryButton({ controller, t })
+assert(entryEl !== null && entryEl.type === "button", "入口按钮应渲染成 button")
+assert(entryEl.props.className === "dla-entry", "入口按钮应带 dla-entry 类名")
+assert(emojiIn(entryEl).length === 0, "入口按钮里不应有 emoji")
+const currentBackup = sessions.current
+sessions.current = "完全无关的会话"
+assert(components.EntryButton({ controller, t }) === null, "与追问无关的会话里不应渲染入口按钮")
+sessions.current = currentBackup
 
 // ---- 锚点：当前就在根会话时，点击只收网格 ----
 const anchorEls = findAll(graphTree, "dla-anchor")
