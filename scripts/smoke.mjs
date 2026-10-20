@@ -1,4 +1,4 @@
-/**
+﻿/**
  * 无浏览器的冒烟测试：把 `lib/client.js` 当作 DSH 的模块格式加载，喂一套最小桩，
  * 验证「插件能被实例化、注册进 shell.overlay、根组件能渲染」这三件事。
  *
@@ -68,6 +68,8 @@ const document = createFakeDocument()
 const loaded = []
 
 /** 平台静态模块表里我们会用到的三个。 */
+const SESSIONS = { current: undefined }
+
 const sharedModules = {
   react: React,
   "react-dom": { createPortal: (children) => children },
@@ -140,7 +142,10 @@ const ctx = {
     },
   },
   sessions: {
-    list: { getSnapshot: () => ({ current: undefined, byId: {} }) },
+    list: {
+      getSnapshot: () => ({ current: SESSIONS.current, byId: { "main-session": { cwd: "C:/work" } } }),
+      subscribe: () => () => {},
+    },
     binding: () => undefined,
     create: async () => "session-stub",
     open: () => {},
@@ -185,11 +190,29 @@ assert(document._headChildren.some((child) => child.dataset && child.dataset.plu
 
 // ---- 渲染根组件 ----
 const business = registeredSlots[0].definition.inject()
-const html = ReactDOMServer.renderToString(
-  React.createElement(registeredSlots[0].component, { controller: business.controller, t: (key) => key }),
+const controller = business.controller
+const render = () => ReactDOMServer.renderToString(
+  React.createElement(registeredSlots[0].component, { controller, t: (key) => key }),
 )
-assert(html.includes("dla-entry"), "根组件应渲染入口按钮")
-assert(html.includes("dla-layer"), "根组件应渲染浮层容器")
+
+// 还没有任何提问时：浮层容器在，但入口按钮不该出现（与追问无关的会话不显示入口）。
+const emptyHtml = render()
+assert(emptyHtml.includes("dla-layer"), "根组件应渲染浮层容器")
+assert(emptyHtml.includes("dla-entry") === false, "没有任何提问时不应渲染入口按钮")
+
+// 在"当前会话"里提一个问题之后：入口按钮应出现（该会话与追问相关）。
+SESSIONS.current = "main-session"
+await controller.ask({ term: "锚定浮卡", quote: "从选中处展开卡片", parent: null, rect: null })
+await new Promise((done) => setTimeout(done, 30))
+assert(controller.state.nodes.length === 1, `提问后应有 1 个节点，实际 ${controller.state.nodes.length}`)
+const filledHtml = render()
+assert(filledHtml.includes("dla-entry"), "相关会话里应渲染入口按钮")
+
+// 切到一个与追问无关的会话：入口按钮应消失。
+SESSIONS.current = "另一个新会话"
+const unrelatedHtml = render()
+assert(unrelatedHtml.includes("dla-layer"), "无关会话里浮层容器仍在")
+assert(unrelatedHtml.includes("dla-entry") === false, "无关会话里不应渲染入口按钮")
 
 // ---- 卸载：每个 effect 的清理函数都应安全执行 ----
 for (const { disposer } of effects.slice()) {
