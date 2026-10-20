@@ -154,6 +154,20 @@ node C:\Users\Admin\.dsh\profiles\node_modules\@deepseek-ai\dsh\lib\bin.js --pro
 > **改代码后的生效条件**：客户端 bundle 的字节是在宿主组合时快照进内存的（`dsh-client-modules` 只在
 > HMR 报告重建时才换图），所以改完 `lib/client.js` 必须**整应用重启一次**；只刷新页面会拿到旧字节。
 
+### 3.5 已取得的运行时证据（不是推断）
+
+用一个**一次性验证实例**证明了两件 spec 要求的事——独立 `DSH_HOME`（`%TEMP%\dsh-verify-home`，
+profile 用 junction 指回真实目录）+ 独立端口，验完即销毁，不碰正在使用的桌面实例：
+
+| 结论 | 证据 |
+|---|---|
+| 插件被加载（进插件树） | `dsh --profile desktop --dump-config` 输出里出现 `# == …\cordis.patch.yml` 下的 `- id: lateral-ask / name: dsh-plugin-lateral-ask` |
+| 插件被加载（进浏览器启动图） | 实例首页 `__DSH_BOOT__` 的 plugin 名单里出现 `dsh-plugin-lateral-ask/client.js` |
+| bundle 被 `/plugins` 提供 | 取该 combo URL 返回 200 / 4,308,239 字节，内容含 `dsh-plugin-lateral-ask`、`dla-entry`、`追问网`、`shell.overlay`、`settingsScope` |
+| 服务的是**当前**构建而不是旧快照 | 返回体里同时含本轮才加进去的 `retryCreate`、`card.diag`、`pendingFailed`、`assistant-message`、`pointer-events:auto!important` |
+
+仍未覆盖的只有**交互层**：选中→按钮→浮卡→流式答案→看图这 5 步需要真实浏览器画面，见第 10 节。
+
 ## 4. 架构
 
 ### 4.1 客户端半边：5 个互不耦合的单元
