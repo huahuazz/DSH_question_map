@@ -168,6 +168,21 @@ profile 用 junction 指回真实目录）+ 独立端口，验完即销毁，不
 
 仍未覆盖的只有**交互层**：选中→按钮→浮卡→流式答案→看图这 5 步需要真实浏览器画面，见第 10 节。
 
+### 3.6 用无头浏览器 + 一次性实例跑出来的实测结论（已写回实现）
+
+用 `msedge --headless` + CDP 驱动一个一次性实例（独立 `DSH_HOME`、独立端口、验完销毁）后，
+拿到四条改变实现的结论：
+
+| 实测发现 | 对实现的影响 |
+|---|---|
+| chat 视图节点外壳是 `{ key, kind, id, target, anchorSeq, location, visibility, **data** }`，**文本载荷在 `data` 里**（用户消息 `data.content`、助手 `data.blocks`、失败轮次 `kind:'turn-error'`） | 读答案必须走 `node.data`；早期版本读节点本身，导致"卡片永远空白" |
+| 会话被创建/发问后，`uiConversation.binding(id).target('chat')` 的**订阅不会为后台（非当前）会话推送变更**，但直接 `getSnapshot()` 能读到 7 个节点 | 卡片必须自带轮询兜底（`watchThread`，1.2s 读一次内存快照，文本连续 3 次不变且不在运行才停，最长 3 分钟） |
+| 宿主 `session.create` 只有传 **`workspaceId`** 才会 `workspace.attachSession()`；只传 `cwd` 的会话不会挂进工作区 | 新建横向会话优先取「当前会话所属工作区」的 `workspaceId`，拿不到才退回 `cwd` |
+| 失败轮次会以 `kind: 'turn-error'` 节点出现，`data` 里带宿主原文（例如 `llm-deepseek: no API key for provider route "deepseek-official"`） | 卡片把错误原文直接显示出来，而不是笼统的"出错了" |
+
+实测中还确认：浮层容器、入口按钮（文案 `⟂追问网`）、插件样式表、`[class*="_centerCol"]` 对话区判定
+都在真实渲染进程里成立；网状图的节点矩形与持久化（`settings.yaml` 里的 `lateral-ask.graph`）也在重启后保留。
+
 ## 4. 架构
 
 ### 4.1 客户端半边：5 个互不耦合的单元

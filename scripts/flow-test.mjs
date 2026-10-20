@@ -1,4 +1,4 @@
-/**
+﻿/**
  * 流程级测试：不碰浏览器，用夹具模拟 `sessions` / `uiConversation` / `settingsScope`
  * 的真实形状，把控制器从"选中提问"到"答案落库"整条异步链路跑一遍。
  *
@@ -246,6 +246,7 @@ assert(prompts.length === 2, "create 失败后不应发问")
 
 console.log("flow ok：建会话、继承模型、首问模板、事件窗口、消息投影、落库、子节点、失败路径全部通过")
 console.log(`  节点：${controller.state.nodes.map((entry) => `${entry.term}(${entry.sessionId})`).join(" → ")}`)
+process.exit(0)
 
 function assert(condition, message) {
   if (!condition) {
