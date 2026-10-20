@@ -189,12 +189,20 @@ assert(controller.relatedGraph("main-session") !== null, "当前会话应与追�
 assert(controller.relatedGraph("另一个新会话") === null, "无关会话不应显示入口按钮")
 assert(controller.relatedGraph(controller.state.nodes[0].sessionId) !== null, "横向会话本身也应相关")
 
+// ---- 图钉：可切换，但不阻止"切会话收起" ----
+controller.togglePin()
+assert(controller.state.card.pinned === true, "点击图钉后卡片应标记为固定")
+controller.togglePin()
+assert(controller.state.card.pinned !== true, "再次点击图钉应取消固定")
+controller.togglePin()
+assert(controller.state.card.pinned === true, "固定状态应能重新打开（供下面的切会话断言使用）")
+
 // ---- 切换会话应清场（浮卡属于上一个会话的上下文）----
 assert(controller.state.card !== null, "提问后应有一张浮卡")
 controller.onSessionChanged("main-session")   // 首次只记录，不动界面
 assert(controller.state.card !== null, "同会话不应收起浮卡")
 controller.onSessionChanged("另一个新会话")
-assert(controller.state.card === null, "切到别的会话后浮卡应自动收起")
+assert(controller.state.card === null, "切到别的会话后浮卡应自动收起（即便它是固定状态）")
 assert(controller.state.button === null, "切到别的会话后选区按钮也应收起")
 
 // ---- 打开会话走新接口 ----
