@@ -235,7 +235,7 @@ assert(recoveredController.state.nodes.length === 2, `应从 ⟂ 会话恢复 2 
 const recoveredTerms = recoveredController.state.nodes.map((node) => node.term).sort()
 assert(recoveredTerms.join("|") === "ETF/LOF|股票（Stock）", `恢复出的节点词不对：${recoveredTerms.join("|")}`)
 assert(recoveredController.state.nodes.every((node) => node.recovered === true && node.rootSessionId === null), "恢复的节点应标记 recovered 且无根会话")
-assert(recoveredController.relatedGraph("main-session") !== null, "同工作区的主会话也应看到入口按钮")
+assert(recoveredController.relatedGraph("main-session") === null, "无关会话（哪怕同工作区）不应显示入口按钮")
 assert(recoveredController.relatedGraph("old-1") !== null, "恢复出来的追问会话本身应相关")
 await new Promise((done) => setTimeout(done, 400))
 assert(JSON.parse(storage.get("dsh-question-map:graph")).nodes.length === 2, "恢复结果应回写 localStorage")

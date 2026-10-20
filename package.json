@@ -1,6 +1,6 @@
 {
   "name": "dsh-plugin-question-map",
-  "version": "0.2.3",
+  "version": "0.2.4",
   "description": "Select text in a DSH conversation to ask a context-free side question, and browse every question you asked as a network graph. · 选中对话里的文字横向追问，并把所有追问画成网状图。",
   "license": "MIT",
   "author": "huahuazz",
