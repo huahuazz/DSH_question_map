@@ -2,7 +2,7 @@
 
 [![CI](https://github.com/huahuazz/DSH_question_map/actions/workflows/ci.yml/badge.svg)](https://github.com/huahuazz/DSH_question_map/actions/workflows/ci.yml)
 
-**Select any text in a DSH conversation to ask a context-free side question — and watch every question you asked grow into a browsable network graph.**
+**Select any text in a DSH conversation to ask a context-free side question — and watch every question you asked grow into a browsable question grid.**
 
 A community plugin for [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness) (`dsh`), for **DSH Web and DSH Desktop**.
 
@@ -19,9 +19,22 @@ unclear — so you ask about it in the same thread. Ten minutes later the origin
 context is huge, and you only ever wanted to understand **that one word**.
 
 This plugin lets you **select a fragment of text → click “Ask” → get a separate, empty-context mini conversation**
-that answers just that. Every question remembers which text it came from, and all of them form a graph you can browse.
+that answers just that. Every question remembers which text it came from, and all of them form a grid you can browse.
 
-![question map](docs/images/graph.png)
+![question grid](docs/images/graph.png)
+
+> Screenshots date from 0.3.2; the entry button and the grid toolbar were redesigned in 0.3.9 (see “Interface” below).
+
+## Interface
+
+- **Entry**: a square button in the composer's left cluster (`⟂` plus a node-count badge), shown only in conversations
+  that are related to the grid. It lives in DSH's `conversation.input.left` slot, so the layout owns its size and
+  position — it follows the composer when the input grows.
+- **Popover**: anchored to the selection. Drag its header to move it, drag the bottom-right corner to resize (the size
+  is remembered in local storage). There is no pin button — clicking outside closes it.
+- **Grid**: a full-screen canvas. Conversation anchors on the left, then root questions, then sub-questions, with a
+  vertical toolbar (export / fit / clear / close) pinned to the left edge. Nodes are coloured by depth, and hovering one
+  lights up the whole ancestor chain while everything else dims.
 
 ## Features
 
@@ -30,11 +43,11 @@ that answers just that. Every question remembers which text it came from, and al
 | **Ask about a selection** | Select text in the transcript; a small “Ask” button appears next to it. The popover anchors to the selection — drag its header to move it, drag the corner to resize. |
 | **No inherited context** | Each question is a brand-new session with only *the term plus a short quote around it*. |
 | **Keep chatting in the popover** | Follow-ups stay in the same side session and never disturb the main thread. |
-| **Branch by selecting again** | Select text inside an answer to spawn a child question — the graph grows by itself. |
-| **Network graph** | Conversation anchor → questions → sub-questions, with directed edges; zoom, pan, click a node to reopen its card. |
-| **Jump back to the session** | The ↗ button on a node (or double-click) switches the main view to that question's session. |
-| **Export an image** | The graph toolbar exports the network as a PNG. |
-| **Survives restarts** | The graph is stored in browser local storage. |
+| **Branch by selecting again** | Select text inside an answer to spawn a child question — the grid grows by itself. |
+| **Question grid** | Anchor → root question → sub-questions with directed edges; wheel to zoom, drag the canvas to pan; nodes coloured by depth, hover to highlight the ancestor chain. |
+| **Three ways to navigate** | Click a node's body to switch to that question's session; click the dot on its right edge to peek at the popover without leaving the current session; click a conversation anchor to jump back to where the chain started. |
+| **Export an image** | The download button in the grid toolbar renders the whole grid as a PNG. |
+| **Survives restarts** | The grid and the popover size live in local storage. |
 
 ## Install
 
@@ -57,30 +70,33 @@ Then **fully quit and restart** DSH — client bundles are loaded at composition
 
 1. Select some text in any reply.
 2. Click the “⟂ Ask” button next to it (or press `Alt+Enter`). The popover opens anchored to the selection and starts streaming an answer.
-3. Open “⟂ Question map” in the bottom-right corner to see the network.
-4. Click a node to reopen its card; click ↗ (or double-click) to jump back to that session.
+3. Click the `⟂` square button in the composer's bottom-left cluster to open the grid.
+4. In the grid: click a node to go back to its session, click the small dot on its right edge to peek at the popover, click a conversation anchor to return to the source conversation.
 
-| Popover | Exported graph |
+| Popover | Exported grid |
 |---|---|
 | ![popover](docs/images/graph-nodes.png) | ![export](docs/images/exported.png) |
 
 ## Compatibility
 
 - Requires **dsh >= 0.2.1-rc.2** (see `engines.dsh`).
-- Uses only public client extension points: the `shell.overlay` slot, `uiConversation`, `uiWorkspace`, `sessions`,
-  `locale` and `remote.session`.
+- Uses only public client extension points: the `shell.overlay` and `conversation.input.left` slots, plus
+  `uiConversation`, `uiWorkspace`, `sessions`, `locale` and `remote.session`.
+- On hosts without the `conversation.input.left` slot the entry button simply does not appear; the popover and the grid
+  keep working and nothing throws.
 - No dependency on host-side settings APIs, so a DSH release that replaces them cannot break the plugin's import.
 
 ## Data & privacy
 
-- Nodes and edges live in **browser local storage** under `dsh-question-map:graph`.
+- Nodes and edges live in **browser local storage** under `dsh-question-map:graph`; the popover size is stored next to
+  it as `dsh-question-map:card-size`.
 - Every question creates a real session (its title starts with `⟂`), stored by DSH's own session persistence.
 - The plugin makes no network requests of its own; model calls go through DSH's normal session channel.
 
 ## Known limitations
 
 - Side questions show up in the session list. That is the price of reusing real sessions (same model, tools and streaming as the main chat).
-- The graph is stored per origin: it survives restarts, but changing the port or clearing site data loses it.
+- The grid is stored per origin: it survives restarts, but changing the port or clearing site data loses it.
 - Every question is a real model call.
 
 ## Development
