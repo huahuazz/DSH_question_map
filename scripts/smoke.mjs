@@ -186,24 +186,16 @@ const persisted = JSON.parse([...storage.values()][0])
 assert(persisted.nodes.length === 1, "localStorage 里应有 1 个节点")
 
 assert(controller.currentRootId() === "main-session", `应能从 retainedBy.mainView 认出当前会话，实际 ${controller.currentRootId()}`)
-assert(controller.relatedGraph("main-session") !== null, "当前会话应与追问网相关（入口按钮可见）")
+assert(controller.relatedGraph("main-session") !== null, "当前会话应与追问网格相关（入口按钮可见）")
 assert(controller.relatedGraph("另一个新会话") === null, "无关会话不应显示入口按钮")
 assert(controller.relatedGraph(controller.state.nodes[0].sessionId) !== null, "横向会话本身也应相关")
-
-// ---- 图钉：可切换，但不阻止"切会话收起" ----
-controller.togglePin()
-assert(controller.state.card.pinned === true, "点击图钉后卡片应标记为固定")
-controller.togglePin()
-assert(controller.state.card.pinned !== true, "再次点击图钉应取消固定")
-controller.togglePin()
-assert(controller.state.card.pinned === true, "固定状态应能重新打开（供下面的切会话断言使用）")
 
 // ---- 切换会话应清场（浮卡属于上一个会话的上下文）----
 assert(controller.state.card !== null, "提问后应有一张浮卡")
 controller.onSessionChanged("main-session")   // 首次只记录，不动界面
 assert(controller.state.card !== null, "同会话不应收起浮卡")
 controller.onSessionChanged("另一个新会话")
-assert(controller.state.card === null, "切到别的会话后浮卡应自动收起（即便它是固定状态）")
+assert(controller.state.card === null, "切到别的会话后浮卡应自动收起")
 assert(controller.state.button === null, "切到别的会话后选区按钮也应收起")
 
 // ---- 在子提问里继续追问：要挂到子节点下面，并留在同一张图 ----
@@ -294,6 +286,45 @@ const dotEls = findAll(tree, "dla-node-open")
 assert(dotEls.length >= 1, "节点上应有小圆点")
 dotEls[0].props.onClick({ stopPropagation() {} })
 assert(controller.state.card !== null && controller.state.card !== cardBefore, "点小圆点应打开浮卡（不跳转）")
+
+// ---- 浮卡：没有图钉；标题区可拖动、右下角可改大小 ----
+const cardTree = components.AskCard({ controller, card: controller.state.card, node: controller.state.nodes[0], thread: null, t })
+const pinButtons = findAll(cardTree, "dla-icon-btn").filter((el) => el.props.title === "card.pin" || el.props.title === "card.unpin")
+assert(pinButtons.length === 0, "浮卡上不应再有图钉按钮")
+const heads = findAll(cardTree, "dla-card-head")
+assert(heads.length === 1 && typeof heads[0].props.onPointerDown === "function", "浮卡标题区应挂上拖动处理")
+assert(heads[0].props.title === "card.drag", "标题区应有「可拖动」的提示")
+const grips = findAll(cardTree, "dla-card-resize")
+assert(grips.length === 1 && typeof grips[0].props.onPointerMove === "function", "浮卡右下角应有改大小的把手")
+assert(typeof grips[0].props.onPointerUp === "function", "改大小的把手应在松手时收尾（写本地存储）")
+
+// ---- 视觉层：图标必须是内联 svg，界面里不再出现 emoji ----
+const collectStrings = (element, out = []) => {
+  if (element === null || element === undefined) return out
+  if (typeof element === "string" || typeof element === "number") { out.push(String(element)); return out }
+  if (Array.isArray(element)) { for (const child of element) collectStrings(child, out); return out }
+  if (typeof element === "object") {
+    // 函数组件（比如 Icon）在这里就地展开，否则拿到的只是组件引用，看不到真正的 svg。
+    if (typeof element.type === "function") return collectStrings(element.type(element.props), out)
+    collectStrings(element.props?.children ?? [], out)
+  }
+  return out
+}
+const findByType = (element, type, out = []) => {
+  if (element === null || typeof element !== "object") return out
+  if (Array.isArray(element)) { for (const child of element) findByType(child, type, out); return out }
+  if (typeof element.type === "function") return findByType(element.type(element.props), type, out)
+  if (element.type === type) out.push(element)
+  findByType(element.props?.children ?? [], type, out)
+  return out
+}
+const EMOJI = /[\u{1F000}-\u{1FAFF}\u{2600}-\u{27BF}]/u
+const emojiIn = (element) => collectStrings(element).filter((text) => EMOJI.test(text))
+assert(emojiIn(cardTree).length === 0, "浮卡里不应再有 emoji：" + emojiIn(cardTree).join(" | "))
+assert(findByType(cardTree, "svg").length >= 3, "浮卡的操作按钮应使用内联 svg 图标，实际 " + findByType(cardTree, "svg").length)
+const graphTree = components.GraphView({ controller, nodes: controller.state.nodes, t })
+assert(emojiIn(graphTree).length === 0, "网格里不应再有 emoji：" + emojiIn(graphTree).join(" | "))
+assert(findByType(graphTree, "svg").length >= 2, "网格的工具栏与节点应使用内联 svg 图标，实际 " + findByType(graphTree, "svg").length)
 // ---- 打开会话走新接口 ----
 const openedBefore = openedSessions.length
 controller.openInMain(controller.state.nodes[0].sessionId)

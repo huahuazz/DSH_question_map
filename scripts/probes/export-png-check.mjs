@@ -32,7 +32,7 @@ await evaluate("window.__lateralAsk.state().nodes.length === 0 ? window.__latera
 await new Promise((done) => setTimeout(done, 3000))
 
 const result = await evaluate(`(async () => {
-  const svg = window.__lateralAsk.exportSvg('追问网')
+  const svg = window.__lateralAsk.exportSvg('追问网格')
   if (typeof svg !== 'string' || svg.indexOf('<svg') !== 0) return { ok: false, reason: 'svg text bad' }
   const url = 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(svg)
   const image = new Image()

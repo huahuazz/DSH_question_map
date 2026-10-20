@@ -1,4 +1,4 @@
-# DSH Question Map · 追问网
+# DSH Question Map · 追问网格
 
 [![CI](https://github.com/huahuazz/DSH_question_map/actions/workflows/ci.yml/badge.svg)](https://github.com/huahuazz/DSH_question_map/actions/workflows/ci.yml)
 
@@ -18,13 +18,13 @@
 这个插件让你：**选中任意一段对话文字 → 点「追问」→ 在旁边开一个空上下文的迷你对话**只问它。
 每次追问都会记录"从哪段文字问出来的"，最后连成一张可以浏览的网状图。
 
-![追问网](docs/images/graph.png)
+![追问网格](docs/images/graph.png)
 
 ## 功能
 
 | 能力 | 说明 |
 |---|---|
-| **选词追问** | 选中对话里的文字，旁边出现「追问」小按钮；点开是一张贴着选区的浮卡 |
+| **选词追问** | 选中对话里的文字，旁边出现「追问」小按钮；点开是一张贴着选区的浮卡，按住头部可拖动、拖右下角可拉大小 |
 | **空上下文** | 每次追问都是一个**全新的会话**，只带"选中的词 + 前后一小段引文"，不继承主对话历史 |
 | **卡内继续聊** | 浮卡里可以直接追问，还是同一个横向会话，不会打断主对话 |
 | **再选词→子孙节点** | 在浮卡的答案里再选词追问，就长出子节点，越问越细 |
@@ -54,7 +54,7 @@ dsh plugin --profile desktop add github:huahuazz/DSH_question_map
 
 1. 在任意回复里**选中一段文字**；
 2. 点旁边冒出的「⟂ 追问」（或按 `Alt+Enter`），浮卡会贴着选区打开并开始回答；
-3. 右下角「⟂ 追问网」查看所有追问的网状图；
+3. 右下角「⟂ 追问网格」查看所有追问的网状图；
 4. 图上点节点重开那张卡，点 ↗ 或双击节点回到那次追问的会话。
 
 | 浮卡 | 网状图 |
@@ -69,7 +69,7 @@ dsh plugin --profile desktop add github:huahuazz/DSH_question_map
 
 ## 数据与隐私
 
-- 追问网的节点/连线存在**浏览器 localStorage**（键 `dsh-question-map:graph`）。
+- 追问网格的节点/连线存在**浏览器 localStorage**（键 `dsh-question-map:graph`）。
 - 每次追问会在你的会话列表里新增一个真实会话（标题以 `⟂` 开头），内容按 DSH 自己的会话存储规则落盘。
 - 插件本身不向任何服务器发请求；模型调用走 DSH 自己的会话通道。
 

@@ -27,7 +27,7 @@ that answers just that. Every question remembers which text it came from, and al
 
 | | |
 |---|---|
-| **Ask about a selection** | Select text in the transcript; a small “Ask” button appears next to it. The popover anchors to the selection. |
+| **Ask about a selection** | Select text in the transcript; a small “Ask” button appears next to it. The popover anchors to the selection — drag its header to move it, drag the corner to resize. |
 | **No inherited context** | Each question is a brand-new session with only *the term plus a short quote around it*. |
 | **Keep chatting in the popover** | Follow-ups stay in the same side session and never disturb the main thread. |
 | **Branch by selecting again** | Select text inside an answer to spawn a child question — the graph grows by itself. |

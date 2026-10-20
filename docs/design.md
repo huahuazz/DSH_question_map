@@ -167,7 +167,7 @@ profile 用 junction 指回真实目录）+ 独立端口，验完即销毁，不
 |---|---|
 | 插件被加载（进插件树） | `dsh --profile desktop --dump-config` 输出里出现 `# == …\cordis.patch.yml` 下的 `- id: lateral-ask / name: dsh-plugin-lateral-ask` |
 | 插件被加载（进浏览器启动图） | 实例首页 `__DSH_BOOT__` 的 plugin 名单里出现 `dsh-plugin-lateral-ask/client.js` |
-| bundle 被 `/plugins` 提供 | 取该 combo URL 返回 200 / 4,308,239 字节，内容含 `dsh-plugin-lateral-ask`、`dla-entry`、`追问网`、`shell.overlay`、`settingsScope` |
+| bundle 被 `/plugins` 提供 | 取该 combo URL 返回 200 / 4,308,239 字节，内容含 `dsh-plugin-lateral-ask`、`dla-entry`、`追问网格`、`shell.overlay`、`settingsScope` |
 | 服务的是**当前**构建而不是旧快照 | 返回体里同时含本轮才加进去的 `retryCreate`、`card.diag`、`pendingFailed`、`assistant-message`、`pointer-events:auto!important` |
 
 仍未覆盖的只有**交互层**：选中→按钮→浮卡→流式答案→看图这 5 步需要真实浏览器画面，见第 10 节。
@@ -184,7 +184,7 @@ profile 用 junction 指回真实目录）+ 独立端口，验完即销毁，不
 | 宿主 `session.create` 只有传 **`workspaceId`** 才会 `workspace.attachSession()`；只传 `cwd` 的会话不会挂进工作区 | 新建横向会话优先取「当前会话所属工作区」的 `workspaceId`，拿不到才退回 `cwd` |
 | 失败轮次会以 `kind: 'turn-error'` 节点出现，`data` 里带宿主原文（例如 `llm-deepseek: no API key for provider route "deepseek-official"`） | 卡片把错误原文直接显示出来，而不是笼统的"出错了" |
 
-实测中还确认：浮层容器、入口按钮（文案 `⟂追问网`）、插件样式表、`[class*="_centerCol"]` 对话区判定
+实测中还确认：浮层容器、入口按钮（文案 `⟂追问网格`）、插件样式表、`[class*="_centerCol"]` 对话区判定
 都在真实渲染进程里成立；网状图的节点矩形与持久化（`settings.yaml` 里的 `lateral-ask.graph`）也在重启后保留。
 
 ## 4. 架构
@@ -195,7 +195,7 @@ profile 用 junction 指回真实目录）+ 独立端口，验完即销毁，不
 |---|---|---|
 | `selection-watcher` | 监听 `selectionchange` / `mouseup` / `scroll`，判断选区是否落在对话区域，算出屏幕矩形与来源定位，输出 `Anchor` 或 `null` | 纯 DOM |
 | `ask-button` | 选区旁的小气泡按钮；点击发出 `open(anchor)` 意图 | `Anchor` |
-| `ask-card` | 锚定浮卡：术语 + 来源 + 迷你线程 + 追问输入框 + 「在主页打开/固定/关闭」 | `thread-store`、`graph-store` |
+| `ask-card` | 锚定浮卡：术语 + 来源 + 迷你线程 + 追问输入框 + 「在主页打开/关闭」，可拖动、可拉大小 | `thread-store`、`graph-store` |
 | `graph-view` | 画布浮层：SVG 分层布局、缩放、平移、点节点重开卡 | `graph-store` |
 | `graph-store` | 节点/边模型 + 持久化适配 + 线程对话数据（每个横向会话的消息列表与运行状态） | `settingsScope`、`sessions`、`uiConversation` |
 
@@ -309,7 +309,7 @@ Node = {
   其它问句取首句并去掉冒号后的解释；都没有时退回术语。
 - 节点：圆角矩形 + 标签（截断 12 字），正在运行的节点高亮描边；**右侧一枚 ↗ 圆按钮**，点它切到该提问的会话并收起图与卡片。
 - **导出图片**：图栏「导出图片」把当前图渲染成独立 SVG（自带白底、标题、箭头标记）→ Image → Canvas(2×) → PNG 下载，
-  文件名 `追问网-<时间戳>.png`，全程本地无第三方库。
+  文件名 `追问网格-<时间戳>.png`，全程本地无第三方库。
 - 交互：滚轮缩放（0.4~2.0）、空白处拖拽平移、点节点本体重开其卡、「适应画布」按钮。
 - 初始自动 fit 到全部节点。
 
@@ -340,16 +340,26 @@ Node = {
 
 - 默认 380px 宽，高度自适应，最高 `min(70vh, 560px)`，内容滚动。
 - 定位：选区右侧（空间不足则左侧），垂直方向夹在视口内；一旦用户拖动过就记住位置。
-- 头部：`⟂ 术语` + 来源（「来自本次对话 · 第 N 轮」/「来自节点 X」）+ 「在主页打开 / 固定 / 关闭」。
-- 中部：迷你线程（用户问题右对齐、助手回答左对齐），助手回答用 `MarkdownText` 渲染，运行中显示光标动效。
+- 拖动 / 缩放：按住头部标题区移动（位置夹在视口内）；右下角把手改宽高（宽 320~760 且不超过视口，高 200 起）。
+  改出来的尺寸写在 `localStorage`（`dsh-question-map:card-size`），下次打开保持；没存过就回到默认宽度 + 自适应高度。
+- 顶部：`⟂ 术语` + 来源（「来自本次对话 · 第 N 轮」/「来自节点 X」）；右侧三个操作（打开会话 / 删除 / 关闭）默认 `opacity: 0`，hover 或 `focus-within` 才淡入。
+- 中部：迷你线程（用户问题右对齐、助手回答左对齐），助手回答用 `MarkdownText` 渲染，运行中显示光标动效；原文引文是左侧 2px 品牌色竖线的 `.dla-quote`。
 - 底部：输入框（Enter 发送，Shift+Enter 换行）+ 发送/停止按钮。
-- 关闭规则：Esc、点卡片外、点「关闭」；固定后不随点外部关闭。
+- 关闭规则：Esc、点卡片外、点「关闭」、切换会话。没有「固定」状态——点外部即收起，不留悬空卡片。
 - 卡内同样接入 `selection-watcher`，所以能再选词开子节点。
+
+**视觉规范（0.3.5 起）**：
+
+- 图标一律走 `Icon` 组件（内联 SVG、24×24 网格、`stroke-width: 1.6`、`currentColor`），不再用 emoji——emoji 的字体度量与主题色都不可控，是「简陋感」的主要来源。
+- 层级色：`--dla-depth-0` 中性（锚点）、`--dla-depth-1` 品牌蓝、`--dla-depth-2` 青 `#12a594`、`--dla-depth-3` 紫 `#8b5cf6`，四层循环；节点左边 3px 色条 + 边框同色 40%。
+- hover 任一节点时，祖先链（含所属锚点）点亮、其余节点与边降到 25% 透明度，回答「这个追问从哪来」。
+- 动效只用 `cubic-bezier(.2,.8,.2,1)`、时长 ≤ 160ms；`prefers-reduced-motion: reduce` 时全部关闭。
+- 画布背景是点阵（22px 间距）+ 左上角品牌色光晕，不使用 `backdrop-filter`（桌面端掉帧，且与宿主的克制风格冲突）。
 
 **画布浮层**：见 6.4；入口按钮用 **portal 挂到 `document.body`**（`shell.overlay` 宿主自带 `z-index:20` 的层叠上下文，
 留在里面会被对话区/输入区压住），层级 2147483000，其余位置不拦截点击。
 
-**入口按钮的可见性规则**：只有当**当前会话与追问网相关**时才显示——
+**入口按钮的可见性规则**：只有当**当前会话与追问网格相关**时才显示——
 当前会话是某张图的根会话（图里有 `rootSessionId === 当前会话` 的节点），
 或者当前会话本身就是一个横向提问会话（图里有 `sessionId === 当前会话` 的节点）。
 新开的、没涉及追问的会话里不显示入口按钮，切过去时已经打开的画布会自动收起。

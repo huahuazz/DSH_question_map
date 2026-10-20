@@ -56,7 +56,7 @@ record("③ 节点显示名", await nodeLabels())
 record("   会话锚点", await anchorLabels())
 record("   图栏按钮", await barButtons())
 
-const svg = await evaluate("window.__lateralAsk.exportSvg('追问网')")
+const svg = await evaluate("window.__lateralAsk.exportSvg('追问网格')")
 record("④ 导出 SVG 字节", typeof svg === "string" ? svg.length : svg)
 record("   含节点文本", typeof svg === "string" && svg.indexOf("<text") >= 0)
 record("   含箭头标记", typeof svg === "string" && svg.indexOf("marker-end") >= 0)
