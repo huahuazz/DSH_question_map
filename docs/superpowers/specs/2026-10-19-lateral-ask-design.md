@@ -132,8 +132,27 @@ window.__ModuleLoader__.load({
 |---|---|
 | `node scripts/smoke.mjs` | 客户端 bundle 的模块格式、`shell.overlay` 注册、locale 键集一致、调试句柄、根组件能渲染、卸载幂等 |
 | `node scripts/host-smoke.mjs` | 宿主半边能从**已安装位置**解析依赖、schema 默认值、图 JSON 文本往返、类型拒绝 |
+| `node scripts/verify-composition.mjs` | 按客户端模块系统的**真实规则**核对组合链：包名=loader 行名、`dsh.client.platform=web`、`exports["./client"]` 可解析、bundle 内 `id` 等于包名、`require` 不越出平台共享表、注入依赖全是 web 插件、**每个 `inject` 服务都真有提供方**、补丁层已登记 |
+| `node scripts/flow-test.mjs` | 控制器整条异步链路（建会话→继承模型→首问模板→显式 open 事件窗口→chat 快照投影→防抖落库→子节点→create 失败不留脏数据） |
 
-运行时的手动验收见第 10 节。
+另有一条来自宿主自己的证据：
+
+```powershell
+node C:\Users\Admin\.dsh\profiles\node_modules\@deepseek-ai\dsh\lib\bin.js --profile desktop --dump-config
+```
+
+输出里出现
+
+```
+# == C:\Users\Admin\.dsh\profiles\desktop\cordis.patch.yml
+- id: lateral-ask
+  name: dsh-plugin-lateral-ask
+```
+
+即证明插件条目真的被组合进插件树（不是只写进了文件）。
+
+> **改代码后的生效条件**：客户端 bundle 的字节是在宿主组合时快照进内存的（`dsh-client-modules` 只在
+> HMR 报告重建时才换图），所以改完 `lib/client.js` 必须**整应用重启一次**；只刷新页面会拿到旧字节。
 
 ## 4. 架构
 
