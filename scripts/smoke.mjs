@@ -1,4 +1,4 @@
-/**
+﻿/**
  * 无浏览器的冒烟测试：把 `lib/client.js` 当成 DSH 的浏览器模块加载，喂一套最小桩，
  * 验证「模块格式、注入清单、locale/slot 注册、本地存储、会话跳转、调试句柄、卸载」。
  *
@@ -189,7 +189,49 @@ for (const { disposer } of effects.slice()) {
 }
 assert(globalThis.__questionMap === undefined, "卸载后应移除调试句柄")
 
-console.log("smoke ok：模块格式、注入清单、locale/slot 注册、本地存储、会话跳转、调试句柄、卸载全部通过")
+// ---- 恢复：本地存储为空时，用已有的 ⟂ 会话把图补回来 ----
+storage.clear()
+const recoverCtx = {
+  ...ctx,
+  sessions: {
+    list: {
+      getSnapshot: () => ({
+        current: "main-session",
+        byId: {
+          "main-session": { title: "基金与股票入门介绍", cwd: "C:/work" },
+          "old-1": { title: "⟂ 股票（Stock）", cwd: "C:/work", updatedAt: 1000 },
+          "old-2": { title: "⟂ ETF/LOF", cwd: "C:/work", updatedAt: 2000 },
+          "old-3": { title: "普通对话", cwd: "C:/work" },
+        },
+      }),
+      subscribe: () => () => {},
+    },
+    binding: () => undefined,
+    create: async () => "session-stub",
+  },
+  workspaces: {
+    list: {
+      getSnapshot: () => ({
+        items: [{ workspaceId: "ws-1", sessionIds: ["main-session", "old-1", "old-2", "old-3"] }],
+      }),
+    },
+  },
+}
+plugin.apply(recoverCtx)
+const recoveredController = registeredSlots[registeredSlots.length - 1].definition.inject().controller
+assert(recoveredController.state.nodes.length === 2, `应从 ⟂ 会话恢复 2 个节点，实际 ${recoveredController.state.nodes.length}`)
+const recoveredTerms = recoveredController.state.nodes.map((node) => node.term).sort()
+assert(recoveredTerms.join("|") === "ETF/LOF|股票（Stock）", `恢复出的节点词不对：${recoveredTerms.join("|")}`)
+assert(recoveredController.state.nodes.every((node) => node.recovered === true && node.rootSessionId === null), "恢复的节点应标记 recovered 且无根会话")
+assert(recoveredController.relatedGraph("main-session") !== null, "同工作区的主会话也应看到入口按钮")
+assert(recoveredController.relatedGraph("old-1") !== null, "恢复出来的追问会话本身应相关")
+await new Promise((done) => setTimeout(done, 400))
+assert(JSON.parse(storage.get("dsh-question-map:graph")).nodes.length === 2, "恢复结果应回写 localStorage")
+for (const { disposer } of effects.slice()) {
+  if (typeof disposer === "function") disposer()
+}
+
+console.log("smoke ok：模块格式、注入清单、locale/slot 注册、本地存储、旧会话恢复、会话跳转、调试句柄、卸载全部通过")
 console.log(`  inject: ${plugin.inject.join(", ")}`)
 console.log(`  require 过的共享模块: ${[...new Set(requiredNames)].join(", ")}`)
 
