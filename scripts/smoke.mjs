@@ -325,12 +325,35 @@ assert(findByType(cardTree, "svg").length >= 3, "浮卡的操作按钮应使用�
 const graphTree = components.GraphView({ controller, nodes: controller.state.nodes, t })
 assert(emojiIn(graphTree).length === 0, "网格里不应再有 emoji：" + emojiIn(graphTree).join(" | "))
 assert(findByType(graphTree, "svg").length >= 2, "网格的工具栏与节点应使用内联 svg 图标，实际 " + findByType(graphTree, "svg").length)
+
+// ---- 锚点：当前就在根会话时，点击只收网格 ----
+const anchorEls = findAll(graphTree, "dla-anchor")
+assert(anchorEls.length >= 1, "网格里应有会话锚点，实际 " + anchorEls.length)
+assert(anchorEls[0].props["data-clickable"] === "", "可点的锚点应有 data-clickable 标记")
+assert(typeof anchorEls[0].props.onClick === "function", "有归属会话的锚点应可点击")
+controller.toggleGraph()
+assert(controller.state.graphOpen === true, "应能打开网格")
+anchorEls[0].props.onClick({ stopPropagation() {} })
+assert(controller.state.graphOpen === false, "点当前根会话的锚点应只收起网格")
 // ---- 打开会话走新接口 ----
 const openedBefore = openedSessions.length
 controller.openInMain(controller.state.nodes[0].sessionId)
 await new Promise((done) => setTimeout(done, 50))
 assert(openedSessions.length === openedBefore + 1, `openInMain 应只再打开一个会话，实际 +${openedSessions.length - openedBefore}`)
 assert(controller.currentRootId() === openedSessions[openedSessions.length - 1], `跳转后应能认出当前会话（retainedBy.mainView），实际 ${controller.currentRootId()}`)
+
+// ---- 点别的根会话的锚点：走 openInMain 切过去（把方法换成探针，避免真的排一个 800ms 校验）----
+const sessionBeforeAnchor = sessions.current
+sessions.current = "some-other-session"
+const elsewhereAnchor = findAll(components.GraphView({ controller, nodes: controller.state.nodes, t }), "dla-anchor")[0]
+const realOpenInMain = controller.openInMain
+let anchorTarget = null
+controller.openInMain = (sessionId) => { anchorTarget = sessionId }
+elsewhereAnchor.props.onClick({ stopPropagation() {} })
+controller.openInMain = realOpenInMain
+sessions.current = sessionBeforeAnchor
+const rootIds = new Set(controller.state.nodes.map((node) => node.rootSessionId).filter((id) => id !== null))
+assert(anchorTarget !== null && rootIds.has(anchorTarget), "点锚点应切到该锚点所属的根会话，实际 " + anchorTarget)
 
 // ---- 清空整张图 ----
 controller.markClear()
@@ -379,6 +402,11 @@ const recoveredController = registeredSlots[registeredSlots.length - 1].definiti
 assert(recoveredController.state.nodes.length === 2, `应从 ⟂ 会话恢复 2 个节点，实际 ${recoveredController.state.nodes.length}`)
 const recoveredTerms = recoveredController.state.nodes.map((node) => node.term).sort()
 assert(recoveredTerms.join("|") === "ETF/LOF|股票（Stock）", `恢复出的节点词不对：${recoveredTerms.join("|")}`)
+const recoveredTree = components.GraphView({ controller: recoveredController, nodes: recoveredController.state.nodes, t })
+const orphanAnchor = findAll(recoveredTree, "dla-anchor")[0]
+assert(orphanAnchor !== undefined, "恢复出来的图也应有锚点")
+assert(typeof orphanAnchor.props.onClick !== "function", "「未归属提问」锚点不应可点（没有可跳转的会话）")
+assert(orphanAnchor.props["data-clickable"] === undefined, "「未归属提问」锚点不应带 data-clickable")
 assert(recoveredController.state.nodes.every((node) => node.recovered === true && node.rootSessionId === null), "恢复的节点应标记 recovered 且无根会话")
 assert(recoveredController.relatedGraph("main-session") === null, "无关会话（哪怕同工作区）不应显示入口按钮")
 assert(recoveredController.relatedGraph("old-1") !== null, "恢复出来的追问会话本身应相关")
