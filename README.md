@@ -27,7 +27,7 @@ that answers just that. Every question remembers which text it came from, and al
 
 ## Interface
 
-- **Entry**: a square button in the composer's left cluster (`⟂` plus a node-count badge), shown only in conversations
+- **Entry**: a square button in the composer's left cluster (a Z-shaped node icon plus a node-count badge), shown only in conversations
   that are related to the grid. It lives in DSH's `conversation.input.left` slot, so the layout owns its size and
   position — it follows the composer when the input grows.
 - **Popover**: anchored to the selection. Drag its header to move it, drag the bottom-right corner to resize (the size
@@ -70,7 +70,7 @@ Then **fully quit and restart** DSH — client bundles are loaded at composition
 
 1. Select some text in any reply.
 2. Click the “⟂ Ask” button next to it (or press `Alt+Enter`). The popover opens anchored to the selection and starts streaming an answer.
-3. Click the `⟂` square button in the composer's bottom-left cluster to open the grid.
+3. Click the Z-shaped node button in the composer's bottom-left cluster to open the grid.
 4. In the grid: click a node to go back to its session, click the small dot on its right edge to peek at the popover, click a conversation anchor to return to the source conversation.
 
 | Popover | Exported grid |

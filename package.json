@@ -1,6 +1,6 @@
 {
   "name": "dsh-plugin-question-map",
-  "version": "0.3.9",
+  "version": "0.3.10",
   "description": "Select text in a DSH conversation to ask a context-free side question, and browse every question you asked as a question grid. · 选中对话里的文字横向追问，并把所有追问连成一张追问网格。",
   "license": "MIT",
   "author": "huahuazz",

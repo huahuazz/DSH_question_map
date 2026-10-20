@@ -333,6 +333,7 @@ assert(findByType(graphTree, "svg").length >= 2, "网格的工具栏与节点应
 const entryEl = components.EntryButton({ controller, t })
 assert(entryEl !== null && entryEl.type === "button", "入口按钮应渲染成 button")
 assert(entryEl.props.className === "dla-entry", "入口按钮应带 dla-entry 类名")
+assert(findByType(entryEl, "svg").length >= 1, "入口按钮应使用内联 svg 图标（Z 形节点）")
 assert(emojiIn(entryEl).length === 0, "入口按钮里不应有 emoji")
 const currentBackup = sessions.current
 sessions.current = "完全无关的会话"
