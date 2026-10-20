@@ -18,6 +18,7 @@ const here = dirname(fileURLToPath(import.meta.url))
 const bundlePath = resolve(here, "..", "lib", "client.js")
 
 // react 从 DSH 应用目录解析（宿主静态模块表里的那份）。
+process.env.DSH_TEST_STUB_REACT = "1"
 const { react: React, kind } = loadReact()
 
 const loaded = []
@@ -251,6 +252,22 @@ assert(controller.state.nodes.some((node) => node.id === first.id) === false, "�
 assert(controller.state.nodes.some((node) => node.id === grandchild.id) === false, "子节点应已移除")
 assert(controller.state.card === null, "删除后对应的浮卡应关闭")
 
+// ---- 组件"渲染"（用桩 React 直接调用，抓渲染期的 ReferenceError）----
+const components = globalThis.__questionMap.components
+const t = (key) => key
+const cardProps = { controller, card: { nodeId: first.id, rect: null }, node: first, thread: null, t }
+const renderProps = {
+  GraphView: { controller, nodes: controller.state.nodes, t },
+  AskCard: cardProps,
+  LateralOverlay: { controller, t },
+}
+for (const name of Object.keys(renderProps)) {
+  try {
+    components[name](renderProps[name])
+  } catch (error) {
+    assert(false, `${name} 渲染时抛错：${error instanceof Error ? error.message : String(error)}`)
+  }
+}
 // ---- 打开会话走新接口 ----
 controller.openInMain(controller.state.nodes[0].sessionId)
 await new Promise((done) => setTimeout(done, 50))

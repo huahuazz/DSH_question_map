@@ -54,7 +54,10 @@ export function hasDshInstall() {
  * 足够让冒烟测试验证模块格式与控制器逻辑；真实渲染由浏览器验证。
  */
 export function loadReact() {
+  // 冒烟测试要像调用普通函数那样调用组件（会触碰 hooks 规则），必须用桩。
+  const forceStub = process.env.DSH_TEST_STUB_REACT === "1"
   const attempts = []
+  if (forceStub) return { react: makeStub(), kind: "stub", from: "DSH_TEST_STUB_REACT=1" }
   for (const base of [join(appDir(), "package.json"), import.meta.url]) {
     try {
       return { react: createRequire(base)("react"), kind: "real", from: base }
@@ -62,6 +65,10 @@ export function loadReact() {
       attempts.push(`${base}: ${error instanceof Error ? error.message : String(error)}`)
     }
   }
+  return makeStub()
+}
+
+function makeStub() {
   const noop = () => {}
   class Component {
     constructor(props) {
@@ -98,5 +105,5 @@ export function loadReact() {
     forwardRef: (render) => render,
     Children: { map: (children) => children, toArray: (children) => (Array.isArray(children) ? children : [children]) },
   }
-  return { react, kind: "stub", from: attempts.join(" | ") }
+  return react
 }
