@@ -105,19 +105,35 @@ window.__ModuleLoader__.load({
 
 ### 3.3 安装步骤
 
-1. 把 `lateral-ask/` 复制到 `C:\Users\Admin\.dsh\profiles\desktop\node_modules\dsh-plugin-lateral-ask\`。
-2. 在 `C:\Users\Admin\.dsh\profiles\desktop\package.json` 的 `dependencies` 里加
-   `"dsh-plugin-lateral-ask": "file:./node_modules/dsh-plugin-lateral-ask"`。
-3. 在 `C:\Users\Admin\.dsh\profiles\desktop\cordis.yml` 里加一条：
+> 实现时核实出的关键事实：profile 的 `cordis.yml` **每次启动都会被宿主重写成空根**
+> （源码注释写着 "Edit cordis.patch.yml, not this file"），真正的用户层是
+> **`cordis.patch.yml`**，而且它被 `watchUserPatches` 实时监听（`patchReload: live`），
+> 所以改它不需要重启应用，只需要刷新页面。
+
+1. 把 `lateral-ask/` 的 `package.json` 与 `lib/` 复制到
+   `C:\Users\Admin\.dsh\profiles\desktop\node_modules\dsh-plugin-lateral-ask\`。
+2. 在 `C:\Users\Admin\.dsh\profiles\desktop\cordis.patch.yml` 里追加：
 
    ```yaml
-   - id: lateral-ask
-     name: dsh-plugin-lateral-ask
+   - insert:
+       - id: lateral-ask
+         name: dsh-plugin-lateral-ask
    ```
 
-4. 该 profile 配置了 `patchReload: live`，保存后应自动装载；若浏览器端 bundle 未更新，刷新页面。
+3. 等宿主实时装载（无需重启），然后在浏览器里刷新页面，客户端启动图才会带上本插件的 bundle。
 
-> 第 1~3 步写在工作区之外的目录，需要一次授权（或用户手动执行）。实现时按此顺序提供一段可复制的命令。
+> 第 1~2 步写在工作区之外的目录，需要一次授权。`scripts/install.ps1` 是同样的步骤，
+> 便于以后重新部署；注意本机 PowerShell 执行策略禁止直接跑 `.ps1`，要用
+> `powershell -ExecutionPolicy Bypass -File scripts\install.ps1` 或直接内联执行等价命令。
+
+### 3.4 离线验证手段（没有浏览器也能跑）
+
+| 脚本 | 验证什么 |
+|---|---|
+| `node scripts/smoke.mjs` | 客户端 bundle 的模块格式、`shell.overlay` 注册、locale 键集一致、调试句柄、根组件能渲染、卸载幂等 |
+| `node scripts/host-smoke.mjs` | 宿主半边能从**已安装位置**解析依赖、schema 默认值、图 JSON 文本往返、类型拒绝 |
+
+运行时的手动验收见第 10 节。
 
 ## 4. 架构
 
