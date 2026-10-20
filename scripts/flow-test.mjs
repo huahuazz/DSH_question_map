@@ -1,5 +1,5 @@
 ﻿/**
- * 流程级测试：不碰浏览器，用夹具模拟 `sessions` / `uiConversation` / `settingsScope`
+ * 流程级测试：不碰浏览器，用夹具模拟 `sessions` / `uiConversation` / `uiWorkspace` / localStorage
  * 的真实形状，把控制器从"选中提问"到"答案落库"整条异步链路跑一遍。
  *
  * 覆盖：
@@ -23,7 +23,7 @@ import vm from "node:vm"
 
 const here = dirname(fileURLToPath(import.meta.url))
 const bundlePath = resolve(here, "..", "lib", "client.js")
-const profileRequire = createRequire("C:/Users/Admin/.dsh/profiles/desktop/package.json")
+const profileRequire = createRequire("D:/Program Files/DSH Desktop/resources/app/package.json")
 const React = profileRequire("react")
 
 //#region 浏览器桩
@@ -43,6 +43,12 @@ globalThis.window = {
   __ModuleLoader__: { load(entry) { captured.push(entry) } },
 }
 globalThis.requestAnimationFrame = (fn) => setTimeout(fn, 0)
+const __storage = new Map()
+globalThis.localStorage = {
+  getItem: (key) => (__storage.has(key) ? __storage.get(key) : null),
+  setItem: (key, value) => __storage.set(key, String(value)),
+  removeItem: (key) => __storage.delete(key),
+}
 const captured = []
 //#endregion
 
@@ -64,7 +70,7 @@ const prompts = []
 const renames = []
 const opened = []
 const modelSelections = []
-const settingsWrites = []
+const storage = __storage
 const viewListeners = new Set()
 
 /** 当前 chat 视图快照（测试过程中被改写以模拟流式回答）。 */
@@ -126,7 +132,7 @@ const ctx = {
       return `side-${sessionCounter}`
     },
     binding: (id) => (id === MAIN_SESSION ? bindingFor(MAIN_SESSION) : bindingFor(id)),
-    open: (id) => opened.push(`select:${id}`),
+
   },
   uiConversation: {
     binding: () => ({
@@ -139,16 +145,10 @@ const ctx = {
       }),
     }),
   },
-  settingsScope: {
-    bind: () => ({
-      getSnapshot: () => ({ status: "ready", value: { graph: "" }, revision: 1 }),
-      subscribe: () => () => {},
-      set: (field, value) => {
-        settingsWrites.push({ field, value })
-        return Promise.resolve()
-      },
-    }),
+  uiWorkspace: {
+    openSession: (id) => opened.push(`select:${id}`),
   },
+  workspaces: { list: { getSnapshot: () => ({ items: [] }) } },
   remote: {
     session: {
       selectModel: async (request) => {
@@ -218,14 +218,12 @@ assert(thread.messages[1].role === "assistant", "第二条应是助手消息")
 assert(thread.messages[1].text.includes("贴着选区"), `助手文本不符：${thread.messages[1].text}`)
 assert(thread.running === true, "运行状态应投影到线程")
 
-// 6：防抖后落库
+// 6：防抖后落库（localStorage）
 await sleep(400)
-assert(settingsWrites.length >= 1, "节点应写入设置文档")
-const latest = settingsWrites[settingsWrites.length - 1]
-assert(latest.field === "graph", `写入字段应为 graph，实际 ${latest.field}`)
-const persisted = JSON.parse(latest.value)
-assert(Array.isArray(persisted.nodes) && persisted.nodes.length === 1, "持久化内容应含一个节点")
-assert(persisted.nodes[0].id === node.id, "持久化节点 id 应与内存一致")
+assert(storage.size >= 1, "节点应写入 localStorage")
+const latest = JSON.parse([...storage.values()][storage.size - 1])
+assert(Array.isArray(latest.nodes) && latest.nodes.length === 1, "持久化内容应含一个节点")
+assert(latest.nodes[0].id === node.id, "持久化节点 id 应与内存一致")
 
 // 7：从节点里再选词 → 子节点
 await controller.ask({ term: "选区", quote: "贴着选区展开", parent: { kind: "node", nodeId: node.id }, rect: null })

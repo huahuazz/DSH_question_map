@@ -1,11 +1,33 @@
 {
-  "name": "dsh-plugin-lateral-ask",
-  "version": "0.1.0",
-  "description": "DSH Web GUI: select conversation text to ask a context-free question in a side chat, and browse the resulting question network",
+  "name": "dsh-plugin-question-map",
+  "version": "0.2.0",
+  "description": "Select text in a DSH conversation to ask a context-free side question, and browse every question you asked as a network graph. · 选中对话里的文字横向追问，并把所有追问画成网状图。",
   "license": "MIT",
-  "private": true,
+  "author": "huahuazz",
   "type": "module",
   "main": "lib/index.js",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/huahuazz/DSH_question_map.git"
+  },
+  "homepage": "https://github.com/huahuazz/DSH_question_map#readme",
+  "bugs": {
+    "url": "https://github.com/huahuazz/DSH_question_map/issues"
+  },
+  "keywords": [
+    "deepseek",
+    "harness",
+    "dsh",
+    "dsh-plugin",
+    "question-map",
+    "selection",
+    "side-chat",
+    "graph",
+    "web-ui"
+  ],
+  "engines": {
+    "dsh": ">=0.2.1-rc.2"
+  },
   "exports": {
     ".": {
       "default": "./lib/index.js"
@@ -17,9 +39,17 @@
   },
   "files": [
     "lib/index.js",
-    "lib/client.js"
+    "lib/client.js",
+    "cordis.patch.yml",
+    "README.md",
+    "README.zh.md",
+    "LICENSE",
+    "docs"
   ],
   "dsh": {
+    "bundle": {
+      "patch": "./cordis.patch.yml"
+    },
     "client": {
       "inject": [
         "@deepseek-ai/dsh-api-remotes",
@@ -30,7 +60,8 @@
         "@deepseek-ai/dsh-client-ui-layout",
         "@deepseek-ai/dsh-client-ui-renderer",
         "@deepseek-ai/dsh-client-ui-session",
-        "@deepseek-ai/dsh-client-ui-settings"
+        "@deepseek-ai/dsh-client-ui-settings",
+        "@deepseek-ai/dsh-client-ui-workspace"
       ],
       "platform": "web"
     }

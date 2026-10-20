@@ -1,6 +1,9 @@
-﻿/**
- * 无浏览器的冒烟测试：把 `lib/client.js` 当作 DSH 的模块格式加载，喂一套最小桩，
- * 验证「插件能被实例化、注册进 shell.overlay、根组件能渲染」这三件事。
+/**
+ * 无浏览器的冒烟测试：把 `lib/client.js` 当成 DSH 的浏览器模块加载，喂一套最小桩，
+ * 验证「模块格式、注入清单、locale/slot 注册、本地存储、会话跳转、调试句柄、卸载」。
+ *
+ * 渲染相关的验收由 `scripts/headless-probe.mjs`（真实浏览器）承担——
+ * 这里不再依赖 react-dom/server（当前运行环境里不保证有它）。
  *
  * 运行：node scripts/smoke.mjs
  */
@@ -13,71 +16,39 @@ import vm from "node:vm"
 
 const here = dirname(fileURLToPath(import.meta.url))
 const bundlePath = resolve(here, "..", "lib", "client.js")
-const profileRequire = createRequire("C:/Users/Admin/.dsh/profiles/desktop/package.json")
-const React = profileRequire("react")
-const ReactDOMServer = profileRequire("react-dom/server")
 
-/** 极简 DOM 桩：只提供插件启动路径真正会碰到的成员。 */
-function createFakeDocument() {
-  const listeners = new Map()
-  const created = []
-  const headChildren = []
-  return {
-    head: {
-      append(child) {
-        headChildren.push(child)
-      },
-    },
-    body: { append() {}, removeAttribute() {}, setAttribute() {} },
-    _created: created,
-    _headChildren: headChildren,
-    _listeners: listeners,
-    querySelector() {
-      return null
-    },
-    querySelectorAll() {
-      return []
-    },
-    createElement(tag) {
-      const element = {
-        tagName: tag,
-        dataset: {},
-        style: {},
-        textContent: "",
-        append() {},
-        remove() {},
-        addEventListener() {},
-        removeEventListener() {},
-      }
-      created.push(element)
-      return element
-    },
-    addEventListener(type, fn) {
-      const list = listeners.get(type) ?? []
-      list.push(fn)
-      listeners.set(type, list)
-    },
-    removeEventListener(type, fn) {
-      const list = listeners.get(type) ?? []
-      listeners.set(type, list.filter((entry) => entry !== fn))
-    },
-  }
-}
+// react 从 DSH 应用目录解析（宿主静态模块表里的那份）。
+const appRequire = createRequire("D:/Program Files/DSH Desktop/resources/app/package.json")
+const React = appRequire("react")
 
-const document = createFakeDocument()
 const loaded = []
+const storage = new Map()
+const headChildren = []
+const listeners = new Map()
 
-/** 平台静态模块表里我们会用到的三个。 */
-const SESSIONS = { current: undefined }
-
-const sharedModules = {
-  react: React,
-  "react-dom": { createPortal: (children) => children },
-  "@deepseek-ai/dsh-client-ui-primitives": {
-    MarkdownText: (props) => React.createElement("div", { className: "fake-markdown" }, props.text),
+globalThis.localStorage = {
+  getItem: (key) => (storage.has(key) ? storage.get(key) : null),
+  setItem: (key, value) => storage.set(key, String(value)),
+  removeItem: (key) => storage.delete(key),
+}
+globalThis.document = {
+  head: {
+    append(child) {
+      headChildren.push(child)
+      return child
+    },
+  },
+  body: { append() {}, setAttribute() {}, removeAttribute() {} },
+  querySelector: () => null,
+  querySelectorAll: () => [],
+  createElement: () => ({ dataset: {}, style: {}, append() {}, remove() {}, addEventListener() {} }),
+  addEventListener(type, fn) {
+    listeners.set(type, [...(listeners.get(type) ?? []), fn])
+  },
+  removeEventListener(type, fn) {
+    listeners.set(type, (listeners.get(type) ?? []).filter((entry) => entry !== fn))
   },
 }
-
 globalThis.window = {
   innerWidth: 1440,
   innerHeight: 900,
@@ -88,7 +59,6 @@ globalThis.window = {
     },
   },
 }
-globalThis.document = document
 globalThis.requestAnimationFrame = (fn) => setTimeout(fn, 0)
 
 const source = await readFile(bundlePath, "utf8")
@@ -96,8 +66,15 @@ vm.runInThisContext(source, { filename: bundlePath })
 
 assert(loaded.length === 1, "bundle 应该注册恰好一个模块")
 const entry = loaded[0]
-assert(entry.id === "dsh-plugin-lateral-ask", `模块 id 不符：${entry.id}`)
+assert(entry.id === "dsh-plugin-question-map", `模块 id 不符：${entry.id}`)
 
+const sharedModules = {
+  react: React,
+  "react-dom": { createPortal: (children) => children },
+  "@deepseek-ai/dsh-client-ui-primitives": {
+    MarkdownText: (props) => React.createElement("div", { className: "fake-markdown" }, props.text),
+  },
+}
 const requiredNames = []
 const plugin = entry.factory((name) => {
   requiredNames.push(name)
@@ -107,18 +84,21 @@ const plugin = entry.factory((name) => {
 
 assert(typeof plugin.apply === "function", "插件应导出 apply")
 assert(Array.isArray(plugin.inject), "插件应导出 inject")
-assert(plugin.inject.includes("slots"), "inject 应包含 slots")
+for (const service of ["slots", "locale", "sessions", "uiConversation", "uiWorkspace", "remote", "remote.session"]) {
+  assert(plugin.inject.includes(service), `inject 应包含 ${service}`)
+}
+assert(plugin.inject.includes("settingsScope") === false, "inject 不应再包含已移除的 settingsScope")
 assert(requiredNames.every((name) => name in sharedModules), `出现了共享模块表之外的 require：${requiredNames}`)
 
-// ---- 桩上下文 ----
+//#region 桩上下文
 const effects = []
 const registeredSlots = []
 const localeNamespaces = []
-const settingsWrites = []
+const openedSessions = []
+const sessions = { current: "main-session" }
 
 const ctx = {
   effect(fn, label) {
-    // cordis 的 ctx.effect 会立即执行回调并接管其返回值作为清理函数，这里照做。
     const disposer = fn()
     effects.push({ disposer, label })
     return () => {
@@ -143,84 +123,73 @@ const ctx = {
   },
   sessions: {
     list: {
-      getSnapshot: () => ({ current: SESSIONS.current, byId: { "main-session": { cwd: "C:/work" } } }),
+      getSnapshot: () => ({ current: sessions.current, byId: { "main-session": { cwd: "C:/work" } } }),
       subscribe: () => () => {},
     },
     binding: () => undefined,
     create: async () => "session-stub",
-    open: () => {},
   },
   uiConversation: {
     binding: () => {
       throw new Error("no session in smoke test")
     },
   },
-  settingsScope: {
-    bind() {
-      return {
-        getSnapshot: () => ({ status: "loading", value: undefined, revision: undefined }),
-        subscribe: () => () => {},
-        set(field, value) {
-          settingsWrites.push({ field, value })
-        },
-      }
+  uiWorkspace: {
+    openSession: (id) => {
+      openedSessions.push(id)
     },
+  },
+  workspaces: {
+    list: { getSnapshot: () => ({ items: [] }) },
   },
   remote: { session: { selectModel: async () => ({ ok: true }) } },
 }
+//#endregion
 
 plugin.apply(ctx)
 
 assert(localeNamespaces.length === 1, "应注册一个 locale 命名空间")
-assert(localeNamespaces[0].namespace === "lateralAsk", "locale 命名空间应为 lateralAsk")
+assert(localeNamespaces[0].namespace === "questionMap", "locale 命名空间应为 questionMap")
 assert(
   Object.keys(localeNamespaces[0].dictionaries.zh).length === Object.keys(localeNamespaces[0].dictionaries.en).length,
   "中英文案键集应一致",
 )
 assert(registeredSlots.length === 1, "应注册一个 slot 条目")
 assert(registeredSlots[0].definition.name === "shell.overlay", "slot 条目应挂在 shell.overlay")
-assert(registeredSlots[0].definition.locale === "lateralAsk", "slot 条目应绑定 lateralAsk 文案")
+assert(registeredSlots[0].definition.locale === "questionMap", "slot 条目应绑定 questionMap 文案")
 assert(typeof registeredSlots[0].component === "function", "slot 条目应带组件")
+assert(headChildren.some((child) => child.dataset?.plugin === "dsh-plugin-question-map"), "应注入插件样式表")
 
-assert(globalThis.__lateralAsk !== undefined, "挂载后应暴露调试句柄 __lateralAsk")
-const state = globalThis.__lateralAsk.state()
+assert(globalThis.__questionMap !== undefined, "挂载后应暴露调试句柄 __questionMap")
+const state = globalThis.__questionMap.state()
 assert(Array.isArray(state.nodes), "state.nodes 应为数组")
 assert(state.graphOpen === false, "图默认关闭")
-assert(document._headChildren.some((child) => child.dataset && child.dataset.plugin === "dsh-plugin-lateral-ask"), "应注入插件样式表")
 
-// ---- 渲染根组件 ----
-const business = registeredSlots[0].definition.inject()
-const controller = business.controller
-const render = () => ReactDOMServer.renderToString(
-  React.createElement(registeredSlots[0].component, { controller, t: (key) => key }),
-)
-
-// 还没有任何提问时：浮层容器在，但入口按钮不该出现（与追问无关的会话不显示入口）。
-const emptyHtml = render()
-assert(emptyHtml.includes("dla-layer"), "根组件应渲染浮层容器")
-assert(emptyHtml.includes("dla-entry") === false, "没有任何提问时不应渲染入口按钮")
-
-// 在"当前会话"里提一个问题之后：入口按钮应出现（该会话与追问相关）。
-SESSIONS.current = "main-session"
+// ---- 控制器行为：提问 → 落库 → 入口可见性 ----
+const controller = registeredSlots[0].definition.inject().controller
 await controller.ask({ term: "锚定浮卡", quote: "从选中处展开卡片", parent: null, rect: null })
-await new Promise((done) => setTimeout(done, 30))
+await new Promise((done) => setTimeout(done, 400))
 assert(controller.state.nodes.length === 1, `提问后应有 1 个节点，实际 ${controller.state.nodes.length}`)
-const filledHtml = render()
-assert(filledHtml.includes("dla-entry"), "相关会话里应渲染入口按钮")
+assert(storage.size === 1, "图应写入 localStorage")
+const persisted = JSON.parse([...storage.values()][0])
+assert(persisted.nodes.length === 1, "localStorage 里应有 1 个节点")
 
-// 切到一个与追问无关的会话：入口按钮应消失。
-SESSIONS.current = "另一个新会话"
-const unrelatedHtml = render()
-assert(unrelatedHtml.includes("dla-layer"), "无关会话里浮层容器仍在")
-assert(unrelatedHtml.includes("dla-entry") === false, "无关会话里不应渲染入口按钮")
+assert(controller.relatedGraph("main-session") !== null, "当前会话应与追问网相关（入口按钮可见）")
+assert(controller.relatedGraph("另一个新会话") === null, "无关会话不应显示入口按钮")
+assert(controller.relatedGraph(controller.state.nodes[0].sessionId) !== null, "横向会话本身也应相关")
 
-// ---- 卸载：每个 effect 的清理函数都应安全执行 ----
+// ---- 打开会话走新接口 ----
+controller.openInMain(controller.state.nodes[0].sessionId)
+await new Promise((done) => setTimeout(done, 50))
+assert(openedSessions.length === 1, `应通过 uiWorkspace.openSession 打开会话，实际 ${openedSessions.length}`)
+
+// ---- 卸载 ----
 for (const { disposer } of effects.slice()) {
   if (typeof disposer === "function") disposer()
 }
-assert(globalThis.__lateralAsk === undefined, "卸载后应移除调试句柄")
+assert(globalThis.__questionMap === undefined, "卸载后应移除调试句柄")
 
-console.log("smoke ok：模块格式、locale、slot 注册、调试句柄、根组件渲染、卸载全部通过")
+console.log("smoke ok：模块格式、注入清单、locale/slot 注册、本地存储、会话跳转、调试句柄、卸载全部通过")
 console.log(`  inject: ${plugin.inject.join(", ")}`)
 console.log(`  require 过的共享模块: ${[...new Set(requiredNames)].join(", ")}`)
 
