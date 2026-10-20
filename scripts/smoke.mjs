@@ -189,6 +189,14 @@ assert(controller.relatedGraph("main-session") !== null, "当前会话应与追�
 assert(controller.relatedGraph("另一个新会话") === null, "无关会话不应显示入口按钮")
 assert(controller.relatedGraph(controller.state.nodes[0].sessionId) !== null, "横向会话本身也应相关")
 
+// ---- 切换会话应清场（浮卡属于上一个会话的上下文）----
+assert(controller.state.card !== null, "提问后应有一张浮卡")
+controller.onSessionChanged("main-session")   // 首次只记录，不动界面
+assert(controller.state.card !== null, "同会话不应收起浮卡")
+controller.onSessionChanged("另一个新会话")
+assert(controller.state.card === null, "切到别的会话后浮卡应自动收起")
+assert(controller.state.button === null, "切到别的会话后选区按钮也应收起")
+
 // ---- 打开会话走新接口 ----
 controller.openInMain(controller.state.nodes[0].sessionId)
 await new Promise((done) => setTimeout(done, 50))
