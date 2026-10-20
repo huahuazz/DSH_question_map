@@ -1,4 +1,8 @@
-# 横向提问（lateral-ask）设计
+# 横向提问（question map）设计
+
+> 现状（2026-10）：插件已按 DSH 0.2.x 的 API 实现并发布为 `dsh-plugin-question-map`。
+> 这份文档是最初的设计稿，个别实现对宿主 API 的描述已经过时（例如设置存储从 `settingsScope`
+> 改为浏览器 localStorage，打开会话改用 `uiWorkspace.openSession`），以 `CHANGELOG.md` 与代码为准。
 
 - 日期：2026-10-19
 - 状态：已与用户逐节确认，待实现

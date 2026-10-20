@@ -7,6 +7,8 @@
 一个 [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness)（`dsh`）的社区插件，适用于 **DSH Web 与 DSH Desktop**。
 
 ---
+`scripts/probes/` 里是开发期用的一次性浏览器/接口探针，用于排查具体问题，不属于常规自检。
+
 
 ## 它解决什么问题
 

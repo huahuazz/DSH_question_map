@@ -9,6 +9,8 @@ A community plugin for [DeepSeek Harness](https://github.com/deepseek-ai/deepsee
 English | [中文](README.zh.md)
 
 ---
+`scripts/probes/` holds one-off browser/API probes used while debugging; they are not part of the routine checks.
+
 
 ## The problem
 
