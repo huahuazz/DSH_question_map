@@ -69,6 +69,7 @@ const created = []
 const prompts = []
 const renames = []
 const opened = []
+const retained = new Set()
 const modelSelections = []
 const storage = __storage
 const viewListeners = new Set()
@@ -131,7 +132,11 @@ const ctx = {
       sessionCounter += 1
       return `side-${sessionCounter}`
     },
-    binding: (id) => (id === MAIN_SESSION ? bindingFor(MAIN_SESSION) : bindingFor(id)),
+    binding: (id) => (id === MAIN_SESSION || retained.has(id) ? bindingFor(id) : undefined),
+    retain: (id) => {
+      retained.add(id)
+      return { sessionId: id, release: () => retained.delete(id), ready: Promise.resolve() }
+    },
 
   },
   uiConversation: {
