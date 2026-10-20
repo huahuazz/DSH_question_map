@@ -133,8 +133,9 @@ const ctx = {
     },
     binding: () => undefined,
     create: async () => {
-      sideSessions.push("side-stub")
-      return "side-stub"
+      const id = "side-" + (sideSessions.length + 1)
+      sideSessions.push(id)
+      return id
     },
     retain: (id) => ({ sessionId: id, release: () => {}, ready: Promise.resolve() }),
   },
@@ -204,6 +205,21 @@ assert(controller.state.card !== null, "同会话不应收起浮卡")
 controller.onSessionChanged("另一个新会话")
 assert(controller.state.card === null, "切到别的会话后浮卡应自动收起（即便它是固定状态）")
 assert(controller.state.button === null, "切到别的会话后选区按钮也应收起")
+
+// ---- 在子提问里继续追问：要挂到子节点下面，并留在同一张图 ----
+const first = controller.state.nodes[0]
+sessions.current = first.sessionId
+const inferred = controller.parentForSelection(false)
+assert(inferred !== null && inferred.kind === "node" && inferred.nodeId === first.id, "在追问会话里选词应把该会话的节点作为父节点")
+await controller.ask({ term: "线程池", quote: "线程池的调度策略", parent: inferred, rect: null })
+await new Promise((done) => setTimeout(done, 400))
+const grandchild = controller.state.nodes.find((node) => node.id !== first.id)
+assert(grandchild !== undefined, "应新增第二层节点")
+assert(grandchild.parent.kind === "node" && grandchild.parent.nodeId === first.id, "第二层节点的父节点应是第一层追问")
+assert(grandchild.rootSessionId === first.rootSessionId, "第二层节点应继承同一张图的根")
+const svg = globalThis.__questionMap.exportSvg("t")
+assert(svg.includes("translate(210"), "第一层追问应画在第二列")
+assert(svg.includes("translate(420"), "第二层追问应画在第三列（多层级布局）")
 
 // ---- 打开会话走新接口 ----
 controller.openInMain(controller.state.nodes[0].sessionId)
