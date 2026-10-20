@@ -25,7 +25,6 @@ import { loadReact } from "./lib/env.mjs"
 const here = dirname(fileURLToPath(import.meta.url))
 const bundlePath = resolve(here, "..", "lib", "client.js")
 const { react: React } = loadReact()
-const React = profileRequire("react")
 
 //#region 浏览器桩
 const documentStub = {

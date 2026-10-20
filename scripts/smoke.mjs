@@ -268,11 +268,38 @@ for (const name of Object.keys(renderProps)) {
     assert(false, `${name} 渲染时抛错：${error instanceof Error ? error.message : String(error)}`)
   }
 }
+// ---- 网图节点点击语义：点节点体跳会话、点小圆点开浮卡 ----
+await controller.ask({ term: "点节点应跳转", quote: "", parent: null, rect: null })
+await new Promise((done) => setTimeout(done, 400))
+const tree = globalThis.__questionMap.components.GraphView({ controller, nodes: controller.state.nodes, t })
+const findAll = (element, className, out = []) => {
+  if (element === null || typeof element !== "object") return out
+  if (Array.isArray(element)) {
+    for (const child of element) findAll(child, className, out)
+    return out
+  }
+  if (element.props !== undefined && element.props.className === className) out.push(element)
+  const children = element.props?.children ?? []
+  for (const child of children) findAll(child, className, out)
+  return out
+}
+const nodeEls = findAll(tree, "dla-node")
+assert(nodeEls.length >= 1, "网图里应有可点的节点，实际 " + nodeEls.length)
+const beforeOpen = openedSessions.length
+nodeEls[0].props.onClick({ stopPropagation() {} })
+assert(openedSessions.length === beforeOpen + 1, "点节点体应跳转到会话（uiWorkspace.openSession）")
+assert(controller.state.graphOpen === false, "跳转后应收起网图")
+const cardBefore = controller.state.card
+const dotEls = findAll(tree, "dla-node-open")
+assert(dotEls.length >= 1, "节点上应有小圆点")
+dotEls[0].props.onClick({ stopPropagation() {} })
+assert(controller.state.card !== null && controller.state.card !== cardBefore, "点小圆点应打开浮卡（不跳转）")
 // ---- 打开会话走新接口 ----
+const openedBefore = openedSessions.length
 controller.openInMain(controller.state.nodes[0].sessionId)
 await new Promise((done) => setTimeout(done, 50))
-assert(openedSessions.length === 1, `应通过 uiWorkspace.openSession 打开会话，实际 ${openedSessions.length}`)
-assert(controller.currentRootId() === openedSessions[0], `跳转后应能认出当前会话（retainedBy.mainView），实际 ${controller.currentRootId()}`)
+assert(openedSessions.length === openedBefore + 1, `openInMain 应只再打开一个会话，实际 +${openedSessions.length - openedBefore}`)
+assert(controller.currentRootId() === openedSessions[openedSessions.length - 1], `跳转后应能认出当前会话（retainedBy.mainView），实际 ${controller.currentRootId()}`)
 
 // ---- 清空整张图 ----
 controller.markClear()
