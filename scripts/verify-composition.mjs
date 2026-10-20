@@ -14,11 +14,12 @@
 
 import { readFileSync, existsSync, readdirSync, statSync } from "node:fs"
 import { join, resolve } from "node:path"
+import { appModules, hasDshInstall, profileDir } from "./lib/env.mjs"
 
-const PROFILE = "C:/Users/Admin/.dsh/profiles/desktop"
+const PROFILE = profileDir()
 const PACKAGE_NAME = "dsh-plugin-question-map"
 const INSTALLED_DIR = join(PROFILE, "node_modules", PACKAGE_NAME)
-const APP_MODULES = "D:/Program Files/DSH Desktop/resources/app/node_modules/@deepseek-ai"
+const APP_MODULES = appModules()
 const PLATFORM_MODULES = [
   "react",
   "react/jsx-runtime",
@@ -29,6 +30,12 @@ const PLATFORM_MODULES = [
   "@deepseek-ai/dsh-client-ui-slots",
   "@deepseek-ai/dsh-client-ui-primitives",
 ]
+
+if (hasDshInstall() === false) {
+  console.log(`skipped：本机没有 DSH 安装（可用 DSH_APP_DIR 指定），跳过组合链检查。`)
+  console.log(`  查过的位置：${APP_MODULES}`)
+  process.exit(0)
+}
 
 const failures = []
 const checks = []

@@ -1,63 +1,58 @@
 /**
- * 宿主半边冒烟测试：从**已安装**的位置动态 import `lib/index.js`，确认
- * 依赖能解析、schema 能构造、apply 真的注册了设置命名空间。
+ * 宿主半边冒烟测试：从**已安装**的位置 import `lib/index.js`，确认
+ *
+ *   1. 它不依赖任何 `@deepseek-ai/*` 包（0.2.x 换掉设置 API 时不会连 import 都失败）；
+ *   2. 它导出 `apply`（Cordis 插件契约）且调用不抛错；
+ *   3. 导出的 `NAME` 与包名一致。
  *
  * 运行：node scripts/host-smoke.mjs
+ * 未安装插件时跳过（CI 友好）。
  */
 
+import { existsSync, readFileSync } from "node:fs"
+import { join } from "node:path"
 import { pathToFileURL } from "node:url"
-import { existsSync } from "node:fs"
+import { profileDir } from "./lib/env.mjs"
 
-const installed = "C:/Users/Admin/.dsh/profiles/desktop/node_modules/dsh-plugin-lateral-ask/lib/index.js"
+const packageName = "dsh-plugin-question-map"
+const installedDir = join(profileDir(), "node_modules", packageName)
+const installed = join(installedDir, "lib", "index.js")
 
 if (existsSync(installed) === false) {
-  console.error(`[host-smoke] 未找到已安装的插件：${installed}（先跑 scripts/install.ps1 的等价步骤）`)
-  process.exit(1)
+  console.log(`skipped：未安装到 profile（${installedDir}）。装了之后这个检查才有意义。`)
+  process.exit(0)
 }
 
+// 1) 源码层面：不许 import 官方包
+const source = readFileSync(installed, "utf8")
+const imports = [...source.matchAll(/from\s+"([^"]+)"/g)].map((match) => match[1])
+const official = imports.filter((name) => name.startsWith("@deepseek-ai/"))
+assert(official.length === 0, `宿主半边不应 import 官方包（0.2.x 会因导出变化而加载失败）：${official.join(", ")}`)
+
+// 2) 模块契约
 const module_ = await import(pathToFileURL(installed).href)
 console.log("exports:", Object.keys(module_).join(", "))
 assert(typeof module_.apply === "function", "apply 应为函数")
-assert(module_.NAMESPACE === "lateral-ask", `NAMESPACE 不符：${module_.NAMESPACE}`)
-assert(module_.GRAPH_FIELD === "graph", `GRAPH_FIELD 不符：${module_.GRAPH_FIELD}`)
+assert(module_.NAME === packageName, `NAME 应为 ${packageName}，实际 ${module_.NAME}`)
 
-const registered = []
-const stub = {
-  inject(dependencies, callback) {
-    console.log("inject deps:", dependencies.join(", "))
-    callback({
-      settings: {
-        register(namespace, schema) {
-          registered.push({ namespace, schema })
-        },
-      },
-      logger: { warn: () => {} },
-    })
+// 3) apply 可被调用，且不会去碰任何宿主服务
+const touched = []
+const stub = new Proxy(
+  {},
+  {
+    get(_target, property) {
+      touched.push(String(property))
+      return () => {
+        throw new Error(`宿主半边不应调用 ctx.${String(property)}`)
+      }
+    },
   },
-}
-
+)
 module_.apply(stub)
-assert(registered.length === 1, "应注册恰好一个命名空间")
-assert(registered[0].namespace === "lateral-ask", `命名空间不符：${registered[0].namespace}`)
+assert(touched.length === 0, `apply 不应访问任何宿主服务，实际访问了：${touched.join(", ")}`)
 
-const schema = registered[0].schema
-const empty = schema({})
-assert(typeof empty === "object" && empty !== null, "schema 应能把空对象解析成对象")
-assert(empty.graph === "", `默认 graph 应为空串，实际：${JSON.stringify(empty)}`)
-
-const payload = JSON.stringify({ version: 1, nodes: [{ id: "a" }] })
-const parsed = schema({ graph: payload })
-assert(parsed.graph === payload, "schema 应原样接受图 JSON 文本")
-
-let rejected = false
-try {
-  schema({ graph: 123 })
-} catch (_error) {
-  rejected = true
-}
-assert(rejected, "schema 应拒绝非字符串的 graph")
-
-console.log("host smoke ok：依赖解析、schema 默认值、JSON 文本往返、类型拒绝全部通过")
+console.log("host smoke ok：无官方依赖、apply 契约、空实现全部通过")
+console.log(`  安装位置：${installedDir}`)
 
 function assert(condition, message) {
   if (!condition) {

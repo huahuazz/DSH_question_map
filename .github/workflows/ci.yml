@@ -1,0 +1,38 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: 语法检查（浏览器半边与宿主半边）
+        run: |
+          node --check lib/client.js
+          node --check lib/index.js
+
+      - name: 模块格式 / 注入清单 / 本地存储 / 删除与清空
+        run: node scripts/smoke.mjs
+
+      - name: 业务流程（建会话 → 提问 → 流式读取 → 落库 → 子节点）
+        run: node scripts/flow-test.mjs
+
+      - name: 发布面自检（files / exports / dsh 清单 / bundle 身份）
+        run: node scripts/pack-check.mjs
+
+      # 需要本机装有 DSH 才能核对组合链；CI 上没有安装，脚本会自行跳过。
+      - name: 组合链（无本机 DSH 时自动跳过）
+        run: node scripts/verify-composition.mjs
+
+      - name: 宿主半边（未安装插件时自动跳过）
+        run: node scripts/host-smoke.mjs

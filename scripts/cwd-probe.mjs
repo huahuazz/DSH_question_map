@@ -8,7 +8,7 @@
  */
 
 const port = process.argv[2] ?? "9336"
-const cwd = process.argv[3] ?? "C:/Users/Admin/AppData/Roaming/Microsoft/Windows/Start Menu"
+const cwd = process.argv[3] ?? process.cwd()
 const target = cwd.startsWith("ws:") ? { workspaceId: cwd.slice(3) } : { cwd }
 const base = `http://127.0.0.1:${port}`
 

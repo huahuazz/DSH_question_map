@@ -1,5 +1,7 @@
 # DSH Question Map
 
+[![CI](https://github.com/huahuazz/DSH_question_map/actions/workflows/ci.yml/badge.svg)](https://github.com/huahuazz/DSH_question_map/actions/workflows/ci.yml)
+
 **Select any text in a DSH conversation to ask a context-free side question — and watch every question you asked grow into a browsable network graph.**
 
 A community plugin for [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness) (`dsh`), for **DSH Web and DSH Desktop**.
@@ -85,11 +87,19 @@ This repository is **build-free**: `lib/client.js` is hand-written in DSH's brow
 (`window.__ModuleLoader__.load`), so there is no bundling step — copy it into the profile and restart.
 
 ```sh
-node scripts/smoke.mjs              # module format, inject list, local storage, session switching
+node scripts/smoke.mjs              # module format / inject list / local storage / delete & clear
 node scripts/flow-test.mjs          # create session → prompt → stream → persist → child nodes
-node scripts/verify-composition.mjs # manifest ↔ DSH composition contract
+node scripts/verify-composition.mjs # manifest ↔ DSH composition contract (skips without a local DSH)
 node scripts/pack-check.mjs         # npm publish surface (files / exports / dsh manifest)
 ```
+
+Scripts look for DSH under `~/.dsh/profiles/desktop` and the usual install locations; point them elsewhere with:
+
+```sh
+DSH_PROFILE_DIR="/path/to/profiles/desktop" DSH_APP_DIR="/path/to/resources/app" node scripts/verify-composition.mjs
+```
+
+Pushes run GitHub Actions (syntax, smoke, flow, publish surface); checks that need a local DSH install skip themselves when it is absent.
 
 Release steps: [`docs/PUBLISHING.md`](docs/PUBLISHING.md).
 

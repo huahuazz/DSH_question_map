@@ -8,18 +8,17 @@
  * 运行：node scripts/smoke.mjs
  */
 
-import { createRequire } from "node:module"
 import { readFile } from "node:fs/promises"
 import { fileURLToPath } from "node:url"
 import { dirname, resolve } from "node:path"
 import vm from "node:vm"
+import { loadReact } from "./lib/env.mjs"
 
 const here = dirname(fileURLToPath(import.meta.url))
 const bundlePath = resolve(here, "..", "lib", "client.js")
 
 // react 从 DSH 应用目录解析（宿主静态模块表里的那份）。
-const appRequire = createRequire("D:/Program Files/DSH Desktop/resources/app/package.json")
-const React = appRequire("react")
+const { react: React, kind } = loadReact()
 
 const loaded = []
 const storage = new Map()
@@ -240,11 +239,31 @@ assert(anchorPos.depth === 0 && firstPos.depth === 1 && childPos.depth === 2, "�
 assert(firstPos.x > anchorPos.x + 60, "第一层应排在锚点右侧")
 assert(childPos.x > firstPos.x + 60, "第二层应排在更右侧，不能被上一层压住")
 
+// ---- 删除节点：连带子追问，且只删图里的记录 ----
+controller.openNode(first.id)
+assert(controller.state.card !== null, "打开节点后应有浮卡")
+controller.markRemove(first.id)
+assert(controller.state.card.confirmRemove === first.id, "第一次点删除应进入确认态")
+const beforeRemove = controller.state.nodes.length
+controller.removeNode(first.id)
+assert(controller.state.nodes.length === beforeRemove - 2, "删除父节点应连带删掉它的子追问，实际剩 " + controller.state.nodes.length)
+assert(controller.state.nodes.some((node) => node.id === first.id) === false, "父节点应已移除")
+assert(controller.state.nodes.some((node) => node.id === grandchild.id) === false, "子节点应已移除")
+assert(controller.state.card === null, "删除后对应的浮卡应关闭")
+
 // ---- 打开会话走新接口 ----
 controller.openInMain(controller.state.nodes[0].sessionId)
 await new Promise((done) => setTimeout(done, 50))
 assert(openedSessions.length === 1, `应通过 uiWorkspace.openSession 打开会话，实际 ${openedSessions.length}`)
 assert(controller.currentRootId() === openedSessions[0], `跳转后应能认出当前会话（retainedBy.mainView），实际 ${controller.currentRootId()}`)
+
+// ---- 清空整张图 ----
+controller.markClear()
+assert(controller.state.confirmClear === true, "第一次点清空应进入确认态")
+controller.clearGraph()
+assert(controller.state.nodes.length === 0, "清空后图应为空")
+assert(controller.state.confirmClear === false, "清空后应退出确认态")
+
 
 // ---- 卸载 ----
 for (const { disposer } of effects.slice()) {
@@ -326,6 +345,7 @@ for (const { disposer } of effects.slice()) {
 
 console.log("smoke ok：模块格式、注入清单、locale/slot 注册、本地存储、旧会话恢复（含时序）、会话跳转、调试句柄、卸载全部通过")
 console.log(`  inject: ${plugin.inject.join(", ")}`)
+console.log(`  React: ${kind}`)
 console.log(`  require 过的共享模块: ${[...new Set(requiredNames)].join(", ")}`)
 
 function assert(condition, message) {

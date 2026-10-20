@@ -20,10 +20,11 @@ import { readFile } from "node:fs/promises"
 import { fileURLToPath } from "node:url"
 import { dirname, resolve } from "node:path"
 import vm from "node:vm"
+import { loadReact } from "./lib/env.mjs"
 
 const here = dirname(fileURLToPath(import.meta.url))
 const bundlePath = resolve(here, "..", "lib", "client.js")
-const profileRequire = createRequire("D:/Program Files/DSH Desktop/resources/app/package.json")
+const { react: React } = loadReact()
 const React = profileRequire("react")
 
 //#region 浏览器桩
