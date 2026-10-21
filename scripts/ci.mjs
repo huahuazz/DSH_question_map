@@ -11,6 +11,7 @@
 import { spawnSync } from "node:child_process"
 import { join } from "node:path"
 import { fileURLToPath } from "node:url"
+import { readFileSync } from "node:fs"
 
 const root = fileURLToPath(new URL("..", import.meta.url))
 const env = {
@@ -19,6 +20,19 @@ const env = {
   DSH_APP_DIR: join(root, ".ci-no-dsh"),
   DSH_PROFILE_DIR: join(root, ".ci-no-profile"),
 }
+
+//#region workflow 结构自检（YAML 没有解析器可用，这里查最容易写坏的两处）
+const workflow = readFileSync(join(root, ".github/workflows/ci.yml"), "utf8")
+const workflowProblems = []
+if (/^on:\s*$/m.test(workflow) === false) workflowProblems.push("缺少 on:")
+if (/^\s+- name:.*\brun:/m.test(workflow)) workflowProblems.push("name 与 run 写在了同一行")
+if (/^\s+run:/m.test(workflow) === false) workflowProblems.push("没有任何 run: 步骤")
+if (workflowProblems.length > 0) {
+  console.error("✗ workflow 结构：" + workflowProblems.join("；"))
+  process.exit(1)
+}
+console.log("✓ workflow 结构（on / steps / run 都在位）")
+//#endregion
 
 const steps = [
   ["语法：浏览器半边", "node", ["--check", "lib/client.js"]],

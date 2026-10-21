@@ -1,5 +1,14 @@
 # 更新记录
 
+## 0.3.11
+
+- 修复 CI：`loadReact()` 在找不到真实 React（CI 没有 DSH）时返回的是 React 对象本身，
+  而调用方按 `{ react }` 解构，导致 `flow-test` 以 `Cannot read properties of undefined (reading 'createElement')` 失败。
+  现在无真实 React 时返回 `{ react: stub, kind: "stub" }`，形状与真实分支一致。
+- 新增 `scripts/ci.mjs`（`npm test`）：按 workflow 顺序、在“没有 DSH 的干净环境”下把检查跑一遍，
+  推送前就能发现只在 CI 上失败的用例。GitHub Actions 现在也直接调用它，两边同源。
+- `ci.mjs` 增加 workflow 结构自检（`on:` / `run:` 是否被写坏），避免 YAML 无效导致整条流水线不跑。
+
 ## 0.3.10
 
 - 改动：输入区入口按钮的图标从字符 `⟂` 换成 **Z 形折线 + 四端节点**的自绘 SVG（`grid-z`），一眼能看出「节点 + 连线」这件事；`⟂` 仍保留在会话标题前缀与「⟂ 追问」小按钮上，那是数据约定，不是图标。
