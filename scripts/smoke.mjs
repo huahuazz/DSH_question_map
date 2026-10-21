@@ -66,7 +66,7 @@ vm.runInThisContext(source, { filename: bundlePath })
 
 assert(loaded.length === 1, "bundle 应该注册恰好一个模块")
 const entry = loaded[0]
-assert(entry.id === "dsh-plugin-question-map", `模块 id 不符：${entry.id}`)
+assert(entry.id === "dsh-question-map", `模块 id 不符：${entry.id}`)
 
 const sharedModules = {
   react: React,
@@ -172,7 +172,7 @@ assert(slotByName("shell.overlay") !== undefined, "浮卡/画布应挂在 shell.
 assert(slotByName("shell.overlay").definition.locale === "questionMap", "slot 条目应绑定 questionMap 文案")
 assert(typeof slotByName("shell.overlay").component === "function", "slot 条目应带组件")
 assert(typeof slotByName("conversation.input.left").component === "function", "入口按钮 slot 应带组件")
-assert(headChildren.some((child) => child.dataset?.plugin === "dsh-plugin-question-map"), "应注入插件样式表")
+assert(headChildren.some((child) => child.dataset?.plugin === "dsh-question-map"), "应注入插件样式表")
 
 assert(globalThis.__questionMap !== undefined, "挂载后应暴露调试句柄 __questionMap")
 const state = globalThis.__questionMap.state()

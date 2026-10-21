@@ -53,7 +53,7 @@
 dsh plugin --profile web add github:huahuazz/DSH_question_map
 ```
 
-> 发布到 npm 之后可以简写成 `dsh plugin --profile web add dsh-plugin-question-map`。
+> 发布到 npm 之后可以简写成 `dsh plugin --profile web add dsh-question-map`。
 
 DSH Desktop 用户在 **设置 → 插件** 里搜索安装，或在终端：
 

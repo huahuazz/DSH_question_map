@@ -1,5 +1,18 @@
 # 更新记录
 
+## 0.4.0
+
+**包名变更（不兼容旧安装）：`dsh-plugin-question-map` → `dsh-question-map`。**
+
+- 模块 id、`cordis.patch.yml` 的 `name:`、profile 依赖键同步改了；旧目录需要删掉重装：
+
+  ```sh
+  dsh plugin --profile web remove dsh-plugin-question-map
+  dsh plugin --profile web add dsh-question-map
+  ```
+
+- 只改标识符，功能与数据格式不变（localStorage 键、会话标题前缀都没动，旧追问网原样可用）。
+
 ## 0.3.11
 
 - 修复 CI：`loadReact()` 在找不到真实 React（CI 没有 DSH）时返回的是 React 对象本身，

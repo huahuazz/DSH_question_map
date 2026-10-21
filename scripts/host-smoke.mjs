@@ -14,7 +14,7 @@ import { join } from "node:path"
 import { pathToFileURL } from "node:url"
 import { profileDir } from "./lib/env.mjs"
 
-const packageName = "dsh-plugin-question-map"
+const packageName = "dsh-question-map"
 const installedDir = join(profileDir(), "node_modules", packageName)
 const installed = join(installedDir, "lib", "index.js")
 

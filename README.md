@@ -56,7 +56,7 @@ that answers just that. Every question remembers which text it came from, and al
 dsh plugin --profile web add github:huahuazz/DSH_question_map
 ```
 
-> 发布到 npm 之后可以简写成 `dsh plugin --profile web add dsh-plugin-question-map`。
+> 发布到 npm 之后可以简写成 `dsh plugin --profile web add dsh-question-map`。
 
 DSH Desktop: install it from **Settings → Plugins**, or
 

@@ -1,5 +1,5 @@
-# dsh-plugin-question-map：把自己作为一层插件插进宿主插件树。
-# `dsh plugin add dsh-plugin-question-map` 会读取本文件（package.json 的 dsh.bundle.patch）。
+# dsh-question-map：把自己作为一层插件插进宿主插件树。
+# `dsh plugin add dsh-question-map` 会读取本文件（package.json 的 dsh.bundle.patch）。
 - insert:
     - id: question-map
-      name: dsh-plugin-question-map
+      name: dsh-question-map

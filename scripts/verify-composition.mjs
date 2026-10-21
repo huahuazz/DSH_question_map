@@ -17,7 +17,7 @@ import { join, resolve } from "node:path"
 import { appModules, hasDshInstall, profileDir } from "./lib/env.mjs"
 
 const PROFILE = profileDir()
-const PACKAGE_NAME = "dsh-plugin-question-map"
+const PACKAGE_NAME = "dsh-question-map"
 const INSTALLED_DIR = join(PROFILE, "node_modules", PACKAGE_NAME)
 const APP_MODULES = appModules()
 const PLATFORM_MODULES = [
