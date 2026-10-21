@@ -104,6 +104,7 @@ node scripts/smoke.mjs              # 模块格式 / 注入清单 / 本地存储
 node scripts/flow-test.mjs          # 建会话 → 提问 → 流式读取 → 落库 → 子节点
 node scripts/verify-composition.mjs # 清单与 DSH 组合契约（没有本机 DSH 时自动跳过）
 node scripts/pack-check.mjs         # npm 发布面自检（files/exports/dsh 清单）
+node scripts/ci.mjs               # 本地复现 CI（没有 DSH 的环境）
 ```
 
 脚本默认从 `~/.dsh/profiles/desktop` 和常见安装位置找 DSH；装在别处时用环境变量指定：
@@ -112,7 +113,7 @@ node scripts/pack-check.mjs         # npm 发布面自检（files/exports/dsh �
 DSH_PROFILE_DIR="/path/to/profiles/desktop" DSH_APP_DIR="/path/to/resources/app" node scripts/verify-composition.mjs
 ```
 
-推送会跑 GitHub Actions（语法 / 冒烟 / 流程 / 发布面），依赖本机 DSH 的检查在没有安装时自动跳过。
+推送前先跑 `node scripts/ci.mjs`（或 `npm test`）：它按 GitHub Actions 的顺序、在“没有 DSH 的干净环境”下把检查跑一遍，避免本地绿、CI 红。
 
 发布流程见 [`docs/PUBLISHING.md`](docs/PUBLISHING.md)。
 

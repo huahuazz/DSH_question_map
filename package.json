@@ -67,5 +67,8 @@
       ],
       "platform": "web"
     }
+  },
+  "scripts": {
+    "test": "node scripts/ci.mjs"
   }
 }

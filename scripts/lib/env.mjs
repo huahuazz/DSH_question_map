@@ -26,6 +26,8 @@ function appCandidates() {
     "C:/Program Files/DSH Desktop/resources/app",
     "D:/Program Files/DSH Desktop/resources/app",
     process.env.LOCALAPPDATA === undefined ? undefined : join(process.env.LOCALAPPDATA, "Programs", "DSH Desktop", "resources", "app"),
+    process.env.LOCALAPPDATA === undefined ? undefined : join(process.env.LOCALAPPDATA, "Programs", "DeepSeek Harness", "resources", "app"),
+    process.env.LOCALAPPDATA === undefined ? undefined : join(process.env.LOCALAPPDATA, "Programs", "DeepSeek Harness", "resources", "app.asar.unpacked", "dsh"),
     "/Applications/DSH Desktop.app/Contents/Resources/app",
     join(homedir(), "Applications", "DSH Desktop.app", "Contents", "Resources", "app"),
   ].filter((entry) => typeof entry === "string" && entry !== "")
@@ -40,7 +42,14 @@ export function appDir() {
 
 /** 应用内 `@deepseek-ai/*` 包目录。 */
 export function appModules() {
-  return join(appDir(), "node_modules", "@deepseek-ai")
+  const direct = join(appDir(), "node_modules", "@deepseek-ai")
+  if (existsSync(direct)) return direct
+  // 新装法（DeepSeek Harness）：宿主包在 app.asar 内，unpacked 里只有 unpacked 的子集。
+  const unpacked = join(appDir(), "app.asar.unpacked", "dsh", "node_modules", "@deepseek-ai")
+  if (existsSync(unpacked)) return unpacked
+  const sibling = join(appDir(), "..", "app.asar.unpacked", "dsh", "node_modules", "@deepseek-ai")
+  if (existsSync(sibling)) return sibling
+  return direct
 }
 
 /** 这台机器上是否有可用的 DSH 安装（用于决定是否跳过依赖它的检查）。 */
@@ -65,7 +74,8 @@ export function loadReact() {
       attempts.push(`${base}: ${error instanceof Error ? error.message : String(error)}`)
     }
   }
-  return makeStub()
+  // 找不到真实 React（例如 CI 环境）就退化成桩——调用方按 `{ react }` 解构，形状必须一致。
+  return { react: makeStub(), kind: "stub", from: attempts.join(" | ") }
 }
 
 function makeStub() {

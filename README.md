@@ -109,6 +109,7 @@ node scripts/smoke.mjs              # module format / inject list / local storag
 node scripts/flow-test.mjs          # create session → prompt → stream → persist → child nodes
 node scripts/verify-composition.mjs # manifest ↔ DSH composition contract (skips without a local DSH)
 node scripts/pack-check.mjs         # npm publish surface (files / exports / dsh manifest)
+node scripts/ci.mjs                 # replay the CI steps in a clean environment (no DSH)
 ```
 
 Scripts look for DSH under `~/.dsh/profiles/desktop` and the usual install locations; point them elsewhere with:
@@ -117,7 +118,7 @@ Scripts look for DSH under `~/.dsh/profiles/desktop` and the usual install locat
 DSH_PROFILE_DIR="/path/to/profiles/desktop" DSH_APP_DIR="/path/to/resources/app" node scripts/verify-composition.mjs
 ```
 
-Pushes run GitHub Actions (syntax, smoke, flow, publish surface); checks that need a local DSH install skip themselves when it is absent.
+Before pushing, run `node scripts/ci.mjs` (or `npm test`): it replays the GitHub Actions steps in a clean environment without DSH, so a green local run cannot hide a red CI.
 
 Release steps: [`docs/PUBLISHING.md`](docs/PUBLISHING.md).
 
