@@ -75,18 +75,26 @@ CI 会查仓库创建时间，**不满 1 天直接拒**（目的是过滤"提 PR
 
 改截图只要推自己的仓库，下一次构建自动生效，不用再来提 PR。
 
-## 4. （可选）发布到 npm
+## 4. 发布到 npm（**已决定暂缓，不是必做项**）
 
-发 npm 的好处：市场能显示下载量、安装免 `allowBuilds` 构建授权、`dsh plugin add <包名>` 直接可用。
-**不发也能收录**——列表照样收录，用户从 GitHub 源码安装。
+**现状：不上 npm。** 收录与安装都不依赖它：
+
+- 列表照样收录（市场条目只要求 `dsh.bundle` + 仓库可用）；
+- 安装走 GitHub 源码：`dsh plugin add github:huahuazz/DSH_question_map`；
+- 代价：市场不显示下载量；安装时多一步源码构建（本仓库零构建，影响很小）。
+
+以后想做时，注意下面几点：
 
 ```sh
-npm login
-npm pack --dry-run   # 先看清单：应只包含 lib/ cordis.patch.yml README* LICENSE docs/
-npm publish --access public
+# 本机默认 registry 是国内镜像（只读），登录/发布都必须显式指官方源
+npm login --registry=https://registry.npmjs.org/
+npm publish --registry=https://registry.npmjs.org/ --access public
 ```
 
-发布后，`repository` 字段必须指回本仓库，否则市场不会把 npm 包与这个条目关联（我们已指向）。
+- 包名 `dsh-question-map`（官方源上尚未被占用，2026-10 复核）；`question-map` 已被别人占用，所以 `dsh-` 前缀不能省。
+- 打包预演约 224 KB / 15 个文件（`lib/`、`cordis.patch.yml`、README、截图、docs），不含 `scripts/`。
+- 发布后 `repository` 字段必须指回本仓库，否则市场不会把 npm 包与条目关联（我们已指向）。
+- 开了 auth-and-writes 级 2FA 时，`npm publish` 会要求一次 6 位验证码。
 
 ## 5. 发版检查清单
 
@@ -94,5 +102,5 @@ npm publish --access public
 - [ ] `lib/client.js` 里 `__ModuleLoader__.load({ id })` 的 id **等于包名**
 - [ ] `dsh.client.inject` 里的插件 id 都能在本机 DSH 安装里找到
 - [ ] `cordis.patch.yml` 的 `name:` 等于包名
-- [ ] 四条自检脚本全绿
+- [ ] `node scripts/ci.mjs` 全绿（本地等价 CI）
 - [ ] 仓库已有 `dsh-plugin` topic、创建满 1 天
