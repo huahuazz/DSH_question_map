@@ -95,6 +95,7 @@ const effects = []
 const registeredSlots = []
 const localeNamespaces = []
 const openedSessions = []
+const renamed = []
 const sideSessions = []
 const sessions = { current: "main-session" }
 
@@ -131,7 +132,9 @@ const ctx = {
       },
       subscribe: () => () => {},
     },
-    binding: () => undefined,
+    binding: (id) => (sideSessions.includes(id) || id === "main-session"
+      ? { session: { rename: async (title) => { renamed.push({ id, title }) }, open: async () => {}, getSnapshot: () => ({ running: false }) } }
+      : undefined),
     create: async () => {
       const id = "side-" + (sideSessions.length + 1)
       sideSessions.push(id)
@@ -235,27 +238,56 @@ assert(anchorPos.depth === 0 && firstPos.depth === 1 && childPos.depth === 2, "�
 assert(firstPos.x > anchorPos.x + 60, "第一层应排在锚点右侧")
 assert(childPos.x > firstPos.x + 60, "第二层应排在更右侧，不能被上一层压住")
 
-// ---- 删除节点：连带子追问，且只删图里的记录 ----
+// ---- 删除节点：第一层不可删，第二层删掉连带子追问 ----
 controller.openNode(first.id)
 assert(controller.state.card !== null, "打开节点后应有浮卡")
-controller.markRemove(first.id)
-assert(controller.state.card.confirmRemove === first.id, "第一次点删除应进入确认态")
+assert(controller.isRootNode(first) === true, "第一层追问应被识别为根节点")
+assert(controller.isRootNode(grandchild) === false, "第二层追问不应是根节点")
 const beforeRemove = controller.state.nodes.length
-controller.removeNode(first.id)
-assert(controller.state.nodes.length === beforeRemove - 2, "删除父节点应连带删掉它的子追问，实际剩 " + controller.state.nodes.length)
-assert(controller.state.nodes.some((node) => node.id === first.id) === false, "父节点应已移除")
-assert(controller.state.nodes.some((node) => node.id === grandchild.id) === false, "子节点应已移除")
-assert(controller.state.card === null, "删除后对应的浮卡应关闭")
+const refused = controller.removeNode(first.id)
+assert(refused === false, "第一层追问应拒绝删除")
+assert(controller.state.nodes.length === beforeRemove, "拒绝删除后节点数不应变化")
+assert(controller.state.nodes.some((node) => node.id === first.id), "第一层追问应仍在图里")
+controller.removeNode(grandchild.id)
+assert(controller.state.nodes.length === beforeRemove - 1, "删除第二层应只删它自己（无子节点时），实际剩 " + controller.state.nodes.length)
+assert(controller.state.nodes.some((node) => node.id === grandchild.id) === false, "第二层节点应已移除")
+assert(controller.state.nodes.some((node) => node.id === first.id), "它的父节点不受影响")
 
+// ---- 右键菜单：颜色 / 重命名 / 删除保护 ----
+controller.openMenu("node", first.id, 100, 120)
+assert(controller.state.menu !== null && controller.state.menu.kind === "node", "右键节点应打开菜单")
+controller.setNodeColor(first.id, "amber")
+assert(controller.nodeById(first.id).color === "amber", "应记录高亮色")
+await new Promise((done) => setTimeout(done, 400))
+assert(JSON.parse(storage.get("dsh-question-map:graph")).nodes.some((node) => node.id === first.id && node.color === "amber"), "颜色应写进 localStorage")
+controller.setNodeColor(first.id, null)
+assert(controller.nodeById(first.id).color === undefined, "清除颜色应删除字段")
+
+// 菜单重命名 → 节点标题 + 会话标题
+controller.openMenu("node", first.id, 100, 120)
+controller.menuEdit()
+assert(controller.state.menu.mode === "rename", "应进入重命名态")
+await controller.setNodeTitle(first.id, "股票入门")
+assert(controller.nodeById(first.id).title === "股票入门", "节点应记住自定义标题")
+assert(renamed.some((entry) => entry.title.includes("股票入门")), "应同步改会话标题，实际：" + JSON.stringify(renamed))
+
+// 右键菜单在锚点上也开（只有重命名）
+controller.openMenu("anchor", controller.nodeById(first.id).rootSessionId, 50, 60)
+assert(controller.state.menu.kind === "anchor", "锚点菜单应可打开")
+controller.closeMenu()
+assert(controller.state.menu === null, "关闭后菜单应为空")
 // ---- 组件"渲染"（用桩 React 直接调用，抓渲染期的 ReferenceError）----
 const components = globalThis.__questionMap.components
 const t = (key) => key
 const cardProps = { controller, card: { nodeId: first.id, rect: null }, node: first, thread: null, t }
+controller.openMenu("node", first.id, 40, 40)
 const renderProps = {
   GraphView: { controller, nodes: controller.state.nodes, t },
   AskCard: cardProps,
   LateralOverlay: { controller, t },
+  GraphMenu: { controller, menu: controller.state.menu, t },
 }
+controller.closeMenu()
 for (const name of Object.keys(renderProps)) {
   try {
     components[name](renderProps[name])

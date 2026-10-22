@@ -46,6 +46,8 @@ that answers just that. Every question remembers which text it came from, and al
 | **Branch by selecting again** | Select text inside an answer to spawn a child question — the grid grows by itself. |
 | **Question grid** | Anchor → root question → sub-questions with directed edges; wheel to zoom, drag the canvas to pan; nodes coloured by depth, hover to highlight the ancestor chain. |
 | **Three ways to navigate** | Click a node's body to switch to that question's session; click the dot on its right edge to peek at the popover without leaving the current session; click a conversation anchor to jump back to where the chain started. |
+| **Right-click menu** | On a node: highlight color (5 swatches), rename (renames the session too), delete (first-level questions are protected); on an anchor: rename the session |
+| **Name your question** | Click the card title to edit it — even while the session is being created; the node label prefers your title |
 | **Export an image** | The download button in the grid toolbar renders the whole grid as a PNG. |
 | **Survives restarts** | The grid and the popover size live in local storage. |
 
