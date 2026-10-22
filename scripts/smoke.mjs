@@ -275,6 +275,26 @@ assert(renamed.some((entry) => entry.title.includes("股票入门")), "应同步
 controller.openMenu("anchor", controller.nodeById(first.id).rootSessionId, 50, 60)
 assert(controller.state.menu.kind === "anchor", "锚点菜单应可打开")
 controller.closeMenu()
+
+// ---- 颜色必须落在内联 style 上（SVG 表现属性会被 CSS 覆盖）----
+controller.setNodeColor(first.id, "green")
+const tColor = (key) => key
+const colorTree = globalThis.__questionMap.components.GraphView({ controller, nodes: controller.state.nodes, t: tColor })
+const colorNode = (function find(el) {
+  if (el === null || typeof el !== "object") return null
+  if (Array.isArray(el)) {
+    for (const child of el) { const hit = find(child); if (hit !== null) return hit }
+    return null
+  }
+  if (el.props?.className === "dla-node") return el
+  for (const child of el.props?.children ?? []) { const hit = find(child); if (hit !== null) return hit }
+  return null
+})(colorTree)
+assert(colorNode !== null, "应能定位到节点元素")
+const coloredRects = (colorNode.props.children ?? []).filter((child) => child !== null && typeof child === "object" && child.type === "rect" && child.props?.style?.fill !== undefined)
+assert(coloredRects.length >= 1, "节点的矩形应带内联 fill（否则会被样式表覆盖）")
+assert(coloredRects.some((rect) => String(rect.props.style.fill).includes("18,161,80")), "内联 fill 应为所选绿色，实际 " + JSON.stringify(coloredRects.map((r) => r.props.style.fill)))
+controller.setNodeColor(first.id, null)
 assert(controller.state.menu === null, "关闭后菜单应为空")
 // ---- 组件"渲染"（用桩 React 直接调用，抓渲染期的 ReferenceError）----
 const components = globalThis.__questionMap.components
