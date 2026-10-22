@@ -238,21 +238,6 @@ assert(anchorPos.depth === 0 && firstPos.depth === 1 && childPos.depth === 2, "�
 assert(firstPos.x > anchorPos.x + 60, "第一层应排在锚点右侧")
 assert(childPos.x > firstPos.x + 60, "第二层应排在更右侧，不能被上一层压住")
 
-// ---- 删除节点：第一层不可删，第二层删掉连带子追问 ----
-controller.openNode(first.id)
-assert(controller.state.card !== null, "打开节点后应有浮卡")
-assert(controller.isRootNode(first) === true, "第一层追问应被识别为根节点")
-assert(controller.isRootNode(grandchild) === false, "第二层追问不应是根节点")
-const beforeRemove = controller.state.nodes.length
-const refused = controller.removeNode(first.id)
-assert(refused === false, "第一层追问应拒绝删除")
-assert(controller.state.nodes.length === beforeRemove, "拒绝删除后节点数不应变化")
-assert(controller.state.nodes.some((node) => node.id === first.id), "第一层追问应仍在图里")
-controller.removeNode(grandchild.id)
-assert(controller.state.nodes.length === beforeRemove - 1, "删除第二层应只删它自己（无子节点时），实际剩 " + controller.state.nodes.length)
-assert(controller.state.nodes.some((node) => node.id === grandchild.id) === false, "第二层节点应已移除")
-assert(controller.state.nodes.some((node) => node.id === first.id), "它的父节点不受影响")
-
 // ---- 右键菜单：颜色 / 重命名 / 删除保护 ----
 controller.openMenu("node", first.id, 100, 120)
 assert(controller.state.menu !== null && controller.state.menu.kind === "node", "右键节点应打开菜单")
@@ -401,6 +386,20 @@ controller.toggleGraph()
 assert(controller.state.graphOpen === true, "应能打开网格")
 anchorEls[0].props.onClick({ stopPropagation() {} })
 assert(controller.state.graphOpen === false, "点当前根会话的锚点应只收起网格")
+// ---- 菜单里的删除是纯图标（无文字）----
+controller.openMenu("node", first.id, 60, 60)
+const menuTree = globalThis.__questionMap.components.GraphMenu({ controller, menu: controller.state.menu, t: tColor })
+const findClass = (el, cls) => {
+  if (el === null || typeof el !== "object") return null
+  if (Array.isArray(el)) { for (const child of el) { const hit = findClass(child, cls); if (hit !== null) return hit } return null }
+  if (el.props?.className === cls) return el
+  for (const child of el.props?.children ?? []) { const hit = findClass(child, cls); if (hit !== null) return hit }
+  return null
+}
+const dangerBtn = findClass(menuTree, "dla-menu-icon-btn")
+assert(dangerBtn !== null, "菜单里应有删除图标按钮")
+assert(typeof dangerBtn.props.children === "object", "删除按钮里应是图标而不是文字")
+controller.closeMenu()
 // ---- 打开会话走新接口 ----
 const openedBefore = openedSessions.length
 controller.openInMain(controller.state.nodes[0].sessionId)
@@ -420,6 +419,17 @@ controller.openInMain = realOpenInMain
 sessions.current = sessionBeforeAnchor
 const rootIds = new Set(controller.state.nodes.map((node) => node.rootSessionId).filter((id) => id !== null))
 assert(anchorTarget !== null && rootIds.has(anchorTarget), "点锚点应切到该锚点所属的根会话，实际 " + anchorTarget)
+
+// ---- 删除节点：任意提问节点都可删，连带子追问 ----
+controller.openNode(first.id)
+assert(controller.state.card !== null, "打开节点后应有浮卡")
+const beforeRemove = controller.state.nodes.length
+const removed = controller.removeNode(first.id)
+assert(removed === true, "一级追问也应允许删除（只有会话锚点不可删）")
+assert(controller.state.nodes.length === beforeRemove - 2, "删除父节点应连带它的子追问，实际剩 " + controller.state.nodes.length)
+assert(controller.state.nodes.some((node) => node.id === first.id) === false, "父节点应已移除")
+assert(controller.state.nodes.some((node) => node.id === grandchild.id) === false, "子节点应已移除")
+assert(controller.state.card === null, "删除后对应的浮卡应关闭")
 
 // ---- 清空整张图 ----
 controller.markClear()
